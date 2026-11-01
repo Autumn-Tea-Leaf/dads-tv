@@ -17,6 +17,15 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A full-screen browser locked to Dad's TV page. The page does all the work; this class
@@ -26,28 +35,13 @@ public class MainActivity extends Activity {
 
     private static final String BUNDLED_URL = "https://appassets.androidplatform.net/assets/www/index.html";
 
-    // Once an official live page loads: hide everything except its player, stretch the player
-    // over the whole screen, then keep nudging the video for ~10s until it plays with sound
-    // (pages sometimes start paused or muted). `player` is the element to enlarge on that site.
-    private static String fullscreenJs(String player) {
-        return "(function(){var s=document.createElement('style');s.textContent="
-                + "'html,body{overflow:hidden!important;background:#000!important}"
-                + "body *{visibility:hidden!important}" + player + "," + player + " *{visibility:visible!important}"
-                + player + "{position:fixed!important;left:0!important;top:0!important;width:100vw!important;"
-                + "height:100vh!important;z-index:2147483646!important;background:#000!important;transform:none!important}"
-                + player + " video{width:100%!important;height:100%!important}"
-                + "video{object-fit:contain!important}';"
-                + "document.head.appendChild(s);"
-                + "var tries=0,t=setInterval(function(){var v=document.querySelector('video');"
-                + "if(v){if(v.paused)v.play().catch(function(){});if(v.muted&&!v.paused){v.muted=false;v.volume=1;}}"
-                + "if(++tries>10)clearInterval(t);},1000);"
-                + "})();";
-    }
-
-    private static final String CCTV_FULLSCREEN_JS = fullscreenJs("#player");
-    private static final String TVB_FULLSCREEN_JS = fullscreenJs("video");
+    // Official live sites whose pages the app shows full screen (see assets/fullscreen.js).
+    private static final String[] LIVE_SITES = { "cctv.com", "news.tvb.com" };
+    private static final Set<String> LIVE_ORIGINS =
+            new HashSet<>(Arrays.asList("https://tv.cctv.com", "https://news.tvb.com"));
 
     private WebView web;
+    private String fullscreenJs = "";
     private long lastBackAt;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -75,13 +69,19 @@ public class MainActivity extends Activity {
                 return assets.shouldInterceptRequest(request.getUrl());
             }
 
+            // Backup for WebViews without document-start scripts; the script ignores a second run.
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (isHost(url, "cctv.com")) view.evaluateJavascript(CCTV_FULLSCREEN_JS, null);
-                else if (isHost(url, "news.tvb.com")) view.evaluateJavascript(TVB_FULLSCREEN_JS, null);
+                if (isLiveSite(url)) view.evaluateJavascript(fullscreenJs, null);
             }
         });
         web.addJavascriptInterface(new Bridge(), "DadTV");
+
+        fullscreenJs = readAsset("fullscreen.js");
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            // Runs as each live page starts loading, before the site builds its player.
+            WebViewCompat.addDocumentStartJavaScript(web, fullscreenJs, LIVE_ORIGINS);
+        }
         web.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
@@ -89,17 +89,31 @@ public class MainActivity extends Activity {
         web.loadUrl(BuildConfig.APP_URL.isEmpty() ? BUNDLED_URL : BuildConfig.APP_URL);
     }
 
-    private static boolean isHost(String url, String domain) {
+    private static boolean isLiveSite(String url) {
         String host = url == null ? null : Uri.parse(url).getHost();
-        return host != null && (host.equals(domain) || host.endsWith("." + domain));
+        if (host == null) return false;
+        for (String domain : LIVE_SITES) {
+            if (host.equals(domain) || host.endsWith("." + domain)) return true;
+        }
+        return false;
+    }
+
+    private String readAsset(String name) {
+        try (InputStream in = getAssets().open(name)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            for (int n; (n = in.read(buf)) > 0; ) out.write(buf, 0, n);
+            return out.toString("UTF-8");
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     /** Called from the page's JavaScript as window.DadTV. */
     private class Bridge {
         @JavascriptInterface
         public void openPage(final String url) {
-            // only the broadcasters' own live sites
-            if (!isHost(url, "cctv.com") && !isHost(url, "news.tvb.com")) return;
+            if (!isLiveSite(url)) return;  // only the broadcasters' own live sites
             runOnUiThread(() -> web.loadUrl(url));
         }
     }
