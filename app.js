@@ -184,7 +184,7 @@
 
   function tickClock() {
     const d = new Date();
-    $('greet').innerHTML = `${greeting(d.getHours())}，爸爸<small>今天想看点什么？</small>`;
+    $('greet').innerHTML = `${greeting(d.getHours())}<small>今天想看点什么？</small>`;
     $('time').textContent = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
     $('date').textContent = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
   }
