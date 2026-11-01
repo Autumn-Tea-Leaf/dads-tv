@@ -1,4 +1,4 @@
-# 爸爸的电视 (Dad's TV)
+# 家庭电视 (Family TV)
 
 A big-button TV app for Chinese live TV, dramas and movies, made for a TV remote.
 Every source is free and comes straight from the broadcaster (CCTV, Phoenix, CGTN, provincial
@@ -42,7 +42,7 @@ The Unblock Tech box runs Android, so it installs like any Android app.
      the release download link.
 3. **Allow the install.** Android will ask to allow installs from that app ("unknown sources").
    Say yes for the file manager or Downloader only.
-4. **Open 爸爸的电视** from the home screen. To make it easy to find, move it to the first
+4. **Open 家庭电视** from the home screen. To make it easy to find, move it to the first
    position, or set it as the box's startup app if the launcher allows that.
 
 **Tips for less lag**

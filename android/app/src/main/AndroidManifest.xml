@@ -6,7 +6,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="爸爸的电视"
+        android:label="家庭电视"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/banner"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
