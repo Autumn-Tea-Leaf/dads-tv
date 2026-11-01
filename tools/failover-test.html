@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Loads the real app with deliberately broken first lines, to check auto line switching. -->
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Failover test</title></head>
+<body>
+<script>
+  // Reuse the real page's markup and styles, then swap in a test channel list.
+  fetch('../index.html').then((r) => r.text()).then((html) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    document.head.innerHTML = doc.head.innerHTML;
+    document.body.innerHTML = doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/g, '');
+    window.CHANNEL_GROUPS = [{ name: 'Failover test', channels: [
+      { id: 't-hls', name: 'HLS 测试', sub: 'dead line → Hebei',
+        sources: [{ type: 'hls', url: 'https://example.invalid/dead.m3u8' },
+                  { type: 'hls', url: 'https://event.pull.hebtv.com/live/live101.m3u8' }] },
+      { id: 't-yt', name: 'YouTube 测试', sub: 'bad video → Phoenix',
+        sources: [{ type: 'yt', video: 'xxxxxxxxxxx' },
+                  { type: 'yt', channel: 'UC4vnLYInDvXtLKGOZieMeMw' }] },
+      { id: 't-dead', name: '全坏测试', sub: 'every line dead',
+        sources: [{ type: 'hls', url: 'https://example.invalid/a.m3u8' }] },
+    ] }];
+    for (const src of ['https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js', '../app.js']) {
+      const s = document.createElement('script');
+      s.src = src; s.async = false;
+      document.body.appendChild(s);
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Where the app loads its screens from.
+//   Empty (default): the web files bundled inside the APK (rebuild the APK to update them).
+//   A URL, e.g. -PappUrl=https://you.github.io/dads-tv/ : the hosted copy, which updates itself.
+def appUrl = project.findProperty('appUrl') ?: ''
+
+android {
+    namespace 'tv.dad.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'tv.dad.app'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        buildConfigField 'String', 'APP_URL', "\"${appUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
+
+// Copy the web app (one folder up from android/) into the APK's assets.
+tasks.register('copyWebApp', Copy) {
+    from(rootProject.file('..')) {
+        include 'index.html', 'app.js', 'channels.js', 'catalog.json'
+    }
+    into layout.projectDirectory.dir('src/main/assets/www')
+}
+preBuild.dependsOn copyWebApp
