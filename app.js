@@ -110,11 +110,14 @@
     let index = 0;
     for (const g of window.CHANNEL_GROUPS) {
       const sec = document.createElement('section');
-      sec.innerHTML = `<h2>${esc(g.name)}</h2><div class="row"></div>`;
+      if (g.color) sec.style.setProperty('--c', g.color);
+      sec.innerHTML = `<h2><span class="icon">${g.icon || ''}</span>${esc(g.name)}</h2><div class="row"></div>`;
       const row = sec.querySelector('.row');
       for (const ch of g.channels) {
         const i = index++;
-        row.appendChild(makeTile(ch.name, ch.sub, () => openLive(i), { index: i }));
+        const t = makeTile(ch.name, ch.sub, () => openLive(i), { index: i });
+        t.insertAdjacentHTML('beforeend', `<span class="num">${String(i + 1).padStart(2, '0')}</span>`);
+        row.appendChild(t);
       }
       root.appendChild(sec);
     }
@@ -129,6 +132,13 @@
     return b;
   }
 
+  // "上次看" pill on the channel he watched last, in place of its number.
+  function markLastWatched(idx) {
+    document.querySelectorAll('.tile .badge').forEach((b) => b.remove());
+    const t = tileFor(idx);
+    if (t) t.insertAdjacentHTML('beforeend', '<span class="badge">上次看</span>');
+  }
+
   function buildVodTiles() {
     const row = document.querySelector('#vodGroup .row');
     row.innerHTML = '';
@@ -136,14 +146,10 @@
       row.appendChild(makeTile('片库', '加载失败，请稍后再试', loadCatalog));
       return;
     }
-    const search = makeTile('🔍 搜索', '找电视剧、电影', openSearch);
-    search.classList.add('vod');
-    row.appendChild(search);
+    row.appendChild(makeTile('🔍 搜索', '按片名找电视剧、电影', openSearch));
     for (const p of catalog.providers) {
       if (!p.items.length) continue;
-      const t = makeTile(p.name, `${p.sub} · ${p.items.length} 部`, () => openProvider(p));
-      t.classList.add('vod');
-      row.appendChild(t);
+      row.appendChild(makeTile(p.name, `${p.sub} · ${p.items.length} 部`, () => openProvider(p)));
     }
   }
 
@@ -157,7 +163,8 @@
   function showHomeHint() {
     const last = channels.findIndex((c) => c.id === store.get('last', null));
     if (last >= 0) {
-      hint.innerHTML = `按 <b>OK</b> 继续看 <b>${esc(channels[last].name)}</b>`;
+      hint.innerHTML = `上次看的是 <b>${esc(channels[last].name)}</b>，按 <b>OK</b> 接着看`;
+      markLastWatched(last);
       focusEl(tileFor(last));
     } else {
       hint.innerHTML = '用遥控器 <b>↑ ↓ ← →</b> 选台，按 <b>OK</b> 观看';
@@ -167,11 +174,19 @@
 
   const tileFor = (idx) => document.querySelector(`.tile[data-index="${idx}"]`);
 
+  function greeting(h) {
+    if (h < 5) return '夜深了';
+    if (h < 11) return '早上好';
+    if (h < 13) return '中午好';
+    if (h < 18) return '下午好';
+    return '晚上好';
+  }
+
   function tickClock() {
     const d = new Date();
-    const date = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
-    const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    $('clock').textContent = `${date}  ${time}`;
+    $('greet').innerHTML = `${greeting(d.getHours())}，爸爸<small>今天想看点什么？</small>`;
+    $('time').textContent = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    $('date').textContent = d.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
   }
 
   // ---------------------------------------------------------------- dramas & movies
@@ -192,12 +207,18 @@
     const hist = new Map(store.get('history', []).map((h) => [h.id, h]));
     for (const it of items) {
       const h = hist.get(it.id);
-      let progress = '';
-      if (h && h.type === 'playlist') progress = `<em>看到第 ${h.index + 1} 集</em> · `;
-      else if (h && h.t > 30) progress = `<em>看到 ${clock(h.t)}</em> · `;
+      let progress = '', done = 0;
+      if (h && h.type === 'playlist') {
+        progress = `<em>看到第 ${h.index + 1} 集</em> · `;
+        if (h.n > 1) done = (h.index + (h.d ? h.t / h.d : 0)) / h.n;
+      } else if (h && h.t > 30) {
+        progress = `<em>看到 ${clock(h.t)}</em> · `;
+        if (h.d) done = h.t / h.d;
+      }
       const b = document.createElement('button');
       b.className = 'card';
       b.innerHTML = `<img loading="lazy" alt="" src="${esc(it.thumb)}">
+        ${done > 0 ? `<div class="bar"><i style="width:${Math.min(100, done * 100).toFixed(1)}%"></i></div>` : ''}
         <div class="t">${esc(it.title)}</div>
         <div class="i">${progress}${esc(it.info || '')}${it.provider ? ' · ' + esc(it.provider) : ''}</div>`;
       b.addEventListener('click', () => playVod(it));
@@ -266,11 +287,13 @@
     osdTimer = setTimeout(() => osd.classList.add('fade'), 4000);
   }
 
-  function setStatus(text, { warn = false, ms = 0 } = {}) {
+  // loading: big centred card with a spinner (connecting); spin: small pill with a spinner (buffering)
+  function setStatus(text, { warn = false, ms = 0, loading = false, spin = loading } = {}) {
     clearTimeout(statusTimer);
     if (!text) { statusEl.classList.add('hidden'); return; }
-    statusEl.textContent = text;
+    statusEl.innerHTML = (spin ? '<span class="spin"></span>' : '') + `<span>${esc(text)}</span>`;
     statusEl.classList.toggle('warn', warn);
+    statusEl.classList.toggle('loading', loading);
     statusEl.classList.remove('hidden');
     if (ms) statusTimer = setTimeout(() => statusEl.classList.add('hidden'), ms);
   }
@@ -369,7 +392,7 @@
     const src = s.ch.sources[s.order[s.pos]];
     s.kind = src.type;
     showLiveOsd();
-    setStatus('正在连接…');
+    setStatus(`正在打开 ${s.ch.name}…`, { loading: true });
     s.timer = setInterval(() => watchdog(s, attempt), 1000);
     if (src.type === 'hls') startHls(s, attempt, src.url);
     else if (src.type === 'web') startWeb(s, attempt, src.url);
@@ -407,7 +430,7 @@
     const now = Date.now();
     s.stallStart = now;
     s.stalls = s.stalls.filter((t) => now - t < STALL_WINDOW_MS).concat(now);
-    setStatus('缓冲中…');
+    setStatus('缓冲中…', { spin: true });
     if (s.stalls.length >= STALL_COUNT) handleLag();
   }
 
@@ -459,7 +482,7 @@
     }
     teardownLine(s);
     const attempt = ++s.attempt;  // invalidate callbacks from the line we just left
-    setStatus(n > 1 ? `${reason}，正在换线路 ${s.order[s.pos] + 1}/${n}…` : `${reason}，正在重新连接…`);
+    setStatus(n > 1 ? `${reason}，正在换线路 ${s.order[s.pos] + 1}/${n}…` : `${reason}，正在重新连接…`, { loading: true });
     s.retryTimer = setTimeout(() => { if (isCurrent(s, attempt)) startLine(); }, 1500);
   }
 
@@ -540,7 +563,7 @@
 
   function startWeb(s, attempt, url) {
     clearInterval(s.timer);  // nothing to watch: playback happens on CCTV's page
-    setStatus('正在打开央视官网…');
+    setStatus('正在打开官网直播…', { loading: true });
     setTimeout(() => { if (isCurrent(s, attempt)) openPage(url); }, 600);
   }
 
@@ -612,7 +635,7 @@
     const h = store.get('history', []).find((x) => x.id === item.id);
     const state = vod = { item, errors: 0, startedAt: Date.now(), resumed: false, resume: h };
     flashOsd(item.title, item.provider || '');
-    setStatus('正在加载…');
+    setStatus('正在加载…', { loading: true });
     loadYtApi().then(() => {
       if (vod !== state) return;
       const playerVars = { ...YT_VARS };
@@ -651,7 +674,7 @@
       setStatus(state.needsUnmute ? '按 OK 键打开声音' : '', { ms: state.needsUnmute ? 6000 : 0 });
       showVodOsd();
     } else if (st === YT.PlayerState.BUFFERING) {
-      setStatus('缓冲中…');
+      setStatus('缓冲中…', { spin: true });
     } else if (st === YT.PlayerState.ENDED) {
       const list = p.getPlaylist && p.getPlaylist();
       if (!list || p.getPlaylistIndex() >= list.length - 1) setStatus('全部播完了，按返回选别的节目', { ms: 8000 });
@@ -682,7 +705,9 @@
     remember({
       id: it.id, type: it.type, title: it.title, thumb: it.thumb, info: it.info, provider: it.provider,
       index: it.type === 'playlist' ? Math.max(0, p.getPlaylistIndex()) : 0,
+      n: (p.getPlaylist && p.getPlaylist() || []).length,  // episodes, for the progress bar
       t: p.getCurrentTime(),
+      d: p.getDuration(),
     });
   }
 

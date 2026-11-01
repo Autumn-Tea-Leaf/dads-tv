@@ -8,6 +8,10 @@
 //   cctv(slug)     - opens CCTV's own live page on tv.cctv.com (CCTV won't play inside
 //                    another site). The TV app enlarges its video to full screen.
 //
+// hls() streams must be H.264: browsers can't decode H.265/HEVC in .ts streams (Hunan TV's
+// official stream is HEVC, which is why it isn't listed). DRM-locked streams (Qingdao QTV)
+// can't be shown either.
+//
 // Every source here is a free stream published by the broadcaster itself.
 // Run tools/check_streams.py to see which hls() ones still work.
 
@@ -17,9 +21,10 @@ const ytVideo = (video) => ({ type: 'yt', video });
 const cctv = (slug) => ({ type: 'web', url: `https://tv.cctv.com/live/${slug}/` });
 const tvbNews = () => ({ type: 'web', url: 'https://news.tvb.com/en/live/C' });  // TVB's own site, same idea as cctv()
 
+// Each group: name, icon (shown before the heading), color (the stripe on its tiles).
 window.CHANNEL_GROUPS = [
   {
-    name: '央视 CCTV',
+    name: '央视 CCTV', icon: '📺', color: '#e5484d',
     channels: [
       { id: 'cctv4', name: 'CCTV-4', sub: '中文国际', sources: [cctv('cctv4')] },
       { id: 'cctv1', name: 'CCTV-1', sub: '综合', sources: [cctv('cctv1')] },
@@ -34,7 +39,7 @@ window.CHANNEL_GROUPS = [
     ],
   },
   {
-    name: '新闻',
+    name: '新闻', icon: '📰', color: '#4c8dff',
     channels: [
       { id: 'tvbnews', name: '無綫新聞台', sub: 'TVB News 83台 · 粵語', sources: [tvbNews()] },
       { id: 'phoenix', name: '凤凰卫视', sub: 'Phoenix TV 24小时',
@@ -47,24 +52,20 @@ window.CHANNEL_GROUPS = [
     ],
   },
   {
-    name: '电视剧 · 电影',
+    name: '电视剧 · 电影', icon: '🎭', color: '#a46bff',
     channels: [
       { id: 'cctvdrama', name: '央视剧场 24小时', sub: '三国 · 水浒 · 西游 · 康熙 · 雍正',
         sources: [ytVideo('t4IqvJ9eMI0'), ytVideo('qguQrbBL1vo'), ytVideo('UgOi92IvONg'),
                   ytVideo('clQL5keqAEQ'), ytVideo('VaTLqXjEz0k'), ytLive('UC7Vl0YiY0rDlovqcCFN4yTA')] },
       { id: 'cctvmovie', name: '电影大剧院', sub: '24小时电影连播',
         sources: [ytLive('UCnXAVNOIqCMqgN9yHwSfXdQ'), ytVideo('0lEnHGs_aZc')] },
-      { id: 'qtv3', name: '青岛影视', sub: 'QTV-3',
-        sources: [hls('https://video10.qtv.com.cn/drm/qtv3at/manifest.m3u8')] },
       { id: 'hrbmovie', name: '哈尔滨影视', sub: 'Harbin Movies',
         sources: [hls('https://stream.hrbtv.net/yspd/playlist.m3u8')] },
     ],
   },
   {
-    name: '卫视 · 地方台',
+    name: '卫视 · 地方台', icon: '🏙️', color: '#2bb3a3',
     channels: [
-      { id: 'hunan', name: '湖南卫视', sub: 'Hunan TV',
-        sources: [hls('https://hlsal-ldvt.qing.mgtv.com/nn_live/nn_x64/dWlwPTEyNy4wLjAuMSZ1aWQ9cWluZy1jbXMmbm5fdGltZXpvbmU9OCZjZG5leF9pZD1hbF9obHNfbGR2dCZ1dWlkPTliODY4NmU5ZTM2YzYwMmMmZT02OTE0NjA0JnY9MSZpZD1ITldTWkdTVCZzPTcwN2RiYTc2YzJjNmJmMTQ4MmUyZGYzOWU2NWM3YWFi/HNWSZGST.m3u8')] },
       { id: 'hebei', name: '河北卫视', sub: 'Hebei TV',
         sources: [hls('https://event.pull.hebtv.com/live/live101.m3u8')] },
       { id: 'zjintl', name: '浙江国际', sub: 'Zhejiang International',
@@ -73,14 +74,12 @@ window.CHANNEL_GROUPS = [
         sources: [hls('https://tencentplaybusiness.gztv.com/live/zonghes.m3u8')] },
       { id: 'dongguan', name: '东莞新闻', sub: 'Dongguan News',
         sources: [hls('https://stream.sun0769.com/dgrtv1/mp4tv1_800/index.m3u8')] },
-      { id: 'qtv1', name: '青岛新闻', sub: 'QTV-1',
-        sources: [hls('https://video10.qtv.com.cn/drm/qtv1at/manifest.m3u8')] },
       { id: 'hrbnews', name: '哈尔滨新闻', sub: 'Harbin News',
         sources: [hls('https://stream.hrbtv.net/xwzh/playlist.m3u8?_upt=ef41dd531755913594')] },
     ],
   },
   {
-    name: '纪录 · 旅游',
+    name: '纪录 · 旅游', icon: '🌏', color: '#5bbf6a',
     channels: [
       { id: 'cgtndoc', name: 'CGTN 纪录', sub: 'CGTN Documentary',
         sources: [hls('https://amg00405-rakutentv-cgtndocumentary-rakuten-0ql8j.amagi.tv/master.m3u8')] },
@@ -91,7 +90,7 @@ window.CHANNEL_GROUPS = [
     ],
   },
   {
-    name: '台湾新闻',
+    name: '台湾新闻', icon: '🗞️', color: '#ff8a4c',
     channels: [
       { id: 'tvbs', name: 'TVBS 新闻', sub: 'TVBS News',
         sources: [ytLive('UC5nwNW4KdC0SzrhF9BXEYOQ'), ytVideo('m_dhMSvUCIc')] },

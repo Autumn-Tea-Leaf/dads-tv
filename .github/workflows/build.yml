@@ -39,8 +39,11 @@ jobs:
           git add catalog.json
           git commit -m 'Refresh catalog' && git push || echo 'catalog unchanged'
 
+      # The ?v= stamp makes the TV fetch fresh scripts after every update instead of cached ones.
       - name: Stage site
-        run: mkdir site && cp index.html app.js channels.js catalog.json site/
+        run: |
+          mkdir site && cp index.html app.js channels.js catalog.json site/
+          sed -i -E "s/(app|channels)\.js\"/\1.js?v=${GITHUB_SHA::7}\"/g" site/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

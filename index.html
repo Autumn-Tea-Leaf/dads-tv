@@ -6,92 +6,131 @@
 <title>爸爸的电视</title>
 <style>
   :root {
-    --bg: #0d1117;
-    --panel: #161b22;
-    --tile: #1f2630;
-    --tile-hi: #2a3340;
-    --focus: #f2b632;
-    --text: #f0f3f6;
-    --muted: #9aa4af;
-    --accent: #f2b632;
+    --bg: #12141a;
+    --panel: #1a1d26;
+    --tile: #232733;
+    --tile-hi: #2e3342;
+    --text: #f4f1ea;
+    --muted: #a7adba;
+    --accent: #f5b942;
+    --accent-glow: rgba(245, 185, 66, .28);
     --warn: #ff7b5c;
+    --c: var(--accent);          /* per-group stripe colour, set on each section */
+    --radius: 18px;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  html, body { margin: 0; height: 100%; color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif; }
-  body { overflow: hidden; }
+  body { overflow: hidden;
+    background: radial-gradient(1100px 600px at 0% -10%, #2b2433 0%, transparent 60%),
+                radial-gradient(900px 500px at 100% 0%, #1d2a33 0%, transparent 55%), var(--bg); }
 
   /* ---------- screens ---------- */
   .screen { position: fixed; inset: 0; display: none; }
   .screen.on { display: block; }
-  .scroll { overflow-y: auto; padding: 32px 48px 80px; scroll-behavior: smooth; }
-  header { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-bottom: 8px; }
-  header h1 { font-size: 44px; margin: 0; }
-  #clock { font-size: 34px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .hint { font-size: 24px; color: var(--muted); margin: 0 0 16px; min-height: 32px; }
+  .scroll { overflow-y: auto; padding: 36px 56px 140px; scroll-behavior: smooth; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 6px; }
+  #greet { font-size: 54px; font-weight: 800; margin: 0; line-height: 1.1; }
+  #greet small, .sub-title { display: block; font-size: 26px; font-weight: 400; color: var(--muted); margin-top: 8px; }
+  .clock { text-align: right; white-space: nowrap; }
+  #time { font-size: 60px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  #date { font-size: 24px; color: var(--muted); margin-top: 6px; }
+  .hint { font-size: 26px; color: var(--muted); margin: 18px 0 8px; min-height: 34px; }
   .hint b { color: var(--accent); }
-  section h2 { font-size: 30px; color: var(--muted); font-weight: 600; margin: 28px 0 14px; }
+
+  section h2 { display: flex; align-items: center; gap: 14px; font-size: 32px; font-weight: 700;
+    margin: 40px 0 16px; color: var(--text); }
+  section h2 .icon { font-size: 34px; }
+  section h2::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, var(--c), transparent); opacity: .5; }
 
   /* ---------- live channel tiles ---------- */
-  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-  .tile { background: var(--tile); color: var(--text); border: 4px solid transparent; border-radius: 16px;
-    padding: 22px 20px; min-height: 140px; text-align: left; cursor: pointer; font: inherit;
-    display: flex; flex-direction: column; justify-content: center; gap: 8px; outline: none;
-    transition: transform .12s ease, border-color .12s ease; }
+  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 22px; }
+  .tile { position: relative; background: var(--tile); color: var(--text); border: 4px solid transparent;
+    border-radius: var(--radius); padding: 22px 22px 22px 30px; min-height: 140px; text-align: left; cursor: pointer;
+    font: inherit; display: flex; flex-direction: column; justify-content: center; gap: 8px; outline: none;
+    box-shadow: inset 8px 0 0 var(--c);
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, background .15s ease; }
   .tile .name { font-size: 36px; font-weight: 700; line-height: 1.15; }
   .tile .sub { font-size: 20px; color: var(--muted); }
-  .tile.vod { background: #2a2418; }
+  .tile .num { position: absolute; top: 12px; right: 16px; font-size: 18px; color: var(--muted); opacity: .7;
+    font-variant-numeric: tabular-nums; }
+  .tile .badge { position: absolute; top: 10px; right: 12px; font-size: 17px; font-weight: 700; color: #1b1406;
+    background: var(--accent); border-radius: 999px; padding: 3px 12px; }
   .tile.down .sub::after { content: " · 暂时无法播放"; color: var(--warn); }
 
   /* ---------- poster cards (dramas, movies) ---------- */
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; }
-  .card { background: var(--tile); color: var(--text); border: 4px solid transparent; border-radius: 14px;
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+  .card { background: var(--tile); color: var(--text); border: 4px solid transparent; border-radius: var(--radius);
     padding: 0; overflow: hidden; text-align: left; cursor: pointer; font: inherit; outline: none;
-    transition: transform .12s ease, border-color .12s ease; }
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
   .card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #000; }
-  .card .t { font-size: 24px; font-weight: 600; padding: 10px 14px 4px; line-height: 1.3;
+  .card .bar { height: 6px; background: rgba(255,255,255,.12); }
+  .card .bar i { display: block; height: 100%; background: var(--accent); }
+  .card .t { font-size: 24px; font-weight: 600; padding: 12px 16px 4px; line-height: 1.3;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .card .i { font-size: 18px; color: var(--muted); padding: 0 14px 12px; }
-  .card .i em { font-style: normal; color: var(--accent); }
+  .card .i { font-size: 18px; color: var(--muted); padding: 0 16px 14px; }
+  .card .i em { font-style: normal; color: var(--accent); font-weight: 600; }
 
-  .tile:focus, .tile:hover, .card:focus, .card:hover { border-color: var(--focus); transform: scale(1.04); background: var(--tile-hi); }
+  /* The one thing that must be obvious from the sofa: what is selected. */
+  .tile:focus, .tile:hover, .card:focus, .card:hover {
+    border-color: var(--accent); transform: scale(1.06); background: var(--tile-hi); z-index: 1;
+    box-shadow: inset 8px 0 0 var(--c), 0 14px 34px rgba(0,0,0,.5), 0 0 0 8px var(--accent-glow); }
+  .card:focus, .card:hover { box-shadow: 0 14px 34px rgba(0,0,0,.5), 0 0 0 8px var(--accent-glow); }
 
-  #searchBox { width: 100%; font: inherit; font-size: 34px; padding: 16px 22px; border-radius: 14px;
-    border: 4px solid var(--tile-hi); background: var(--panel); color: var(--text); outline: none; margin-bottom: 24px; }
-  #searchBox:focus { border-color: var(--focus); }
+  #searchBox { width: 100%; font: inherit; font-size: 36px; padding: 18px 26px; border-radius: var(--radius);
+    border: 4px solid var(--tile-hi); background: var(--panel); color: var(--text); outline: none; margin: 8px 0 24px; }
+  #searchBox:focus { border-color: var(--accent); box-shadow: 0 0 0 8px var(--accent-glow); }
   #browseMsg { font-size: 26px; color: var(--muted); }
+
+  /* ---------- remote-key reminder ---------- */
+  .keys { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 30px;
+    padding: 14px 30px; border-radius: 999px; background: rgba(18,20,26,.9); border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: 22px; color: var(--muted); white-space: nowrap; z-index: 5; }
+  .keys kbd { font: inherit; font-weight: 700; color: var(--text); background: var(--tile-hi); border-radius: 8px;
+    padding: 2px 10px; margin-right: 8px; }
 
   /* ---------- player ---------- */
   #player { background: #000; }
   #video, #yt, #yt iframe, #web { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
   #video { object-fit: contain; }
-  #web { overflow: hidden; }
-  #web iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #000; }
   .hidden { display: none !important; }
 
-  #osd { position: absolute; left: 40px; top: 32px; padding: 18px 28px; border-radius: 14px; max-width: 80%;
-    background: rgba(0,0,0,.72); font-size: 34px; font-weight: 700; transition: opacity .3s; pointer-events: none; }
+  #osd { position: absolute; left: 40px; top: 32px; padding: 18px 28px; border-radius: 16px; max-width: 80%;
+    background: rgba(0,0,0,.72); font-size: 34px; font-weight: 700; transition: opacity .3s; pointer-events: none;
+    border-left: 6px solid var(--accent); }
   #osd small { display: block; font-size: 22px; font-weight: 400; color: var(--muted); margin-top: 4px; }
-  #status { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
-    padding: 16px 30px; border-radius: 14px; background: rgba(0,0,0,.78); font-size: 30px;
-    pointer-events: none; text-align: center; max-width: 90%; }
+  #status { position: absolute; left: 50%; bottom: 130px; transform: translateX(-50%);
+    padding: 16px 30px; border-radius: 16px; background: rgba(0,0,0,.8); font-size: 30px;
+    pointer-events: none; text-align: center; max-width: 90%; display: flex; align-items: center; gap: 18px; }
   #status.warn { color: var(--warn); }
+  #status.loading { bottom: auto; top: 50%; transform: translate(-50%, -50%); font-size: 36px; padding: 30px 48px; }
+  #status .spin { width: 40px; height: 40px; border-radius: 50%; border: 5px solid rgba(255,255,255,.2);
+    border-top-color: var(--accent); animation: spin 1s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .fade { opacity: 0; }
 
   #bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
-    padding: 20px; background: linear-gradient(transparent, rgba(0,0,0,.85)); transition: opacity .3s; }
+    padding: 22px; background: linear-gradient(transparent, rgba(0,0,0,.85)); transition: opacity .3s; }
   #bar button { font: inherit; font-size: 24px; padding: 12px 22px; border-radius: 12px; border: 0;
     background: rgba(255,255,255,.15); color: var(--text); cursor: pointer; }
-  #bar button:hover { background: var(--accent); color: #000; }
+  #bar button:hover { background: var(--accent); color: #1b1406; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; scroll-behavior: auto !important; }
+    #status .spin { animation-duration: 3s; }
+  }
 
   @media (max-width: 700px) {
-    .scroll { padding: 20px 16px 60px; }
-    header h1 { font-size: 30px; } #clock { font-size: 18px; }
+    .scroll { padding: 20px 16px 110px; }
+    #greet { font-size: 32px; } #greet small, .sub-title { font-size: 17px; }
+    #time { font-size: 34px; } #date { font-size: 15px; }
     .row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .cards { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .tile { min-height: 100px; padding: 14px; } .tile .name { font-size: 24px; } .tile .sub { font-size: 15px; }
+    .tile { min-height: 100px; padding: 14px 14px 14px 22px; } .tile .name { font-size: 24px; } .tile .sub { font-size: 15px; }
     .card .t { font-size: 17px; } .card .i { font-size: 14px; }
     #searchBox { font-size: 22px; }
+    .keys { font-size: 14px; gap: 14px; padding: 10px 16px; }
     #osd { font-size: 22px; left: 16px; top: 16px; } #status { font-size: 20px; bottom: 90px; }
     #bar button { font-size: 16px; padding: 10px 12px; }
   }
@@ -99,19 +138,27 @@
 </head>
 <body>
   <div id="home" class="screen scroll on">
-    <header><h1>爸爸的电视</h1><div id="clock"></div></header>
+    <header>
+      <h1 id="greet"></h1>
+      <div class="clock"><div id="time"></div><div id="date"></div></div>
+    </header>
     <p id="hint" class="hint"></p>
-    <section id="continue" class="hidden"><h2>继续观看</h2><div class="cards"></div></section>
+    <section id="continue" class="hidden" style="--c: var(--accent)">
+      <h2><span class="icon">⏯️</span>继续观看</h2><div class="cards"></div>
+    </section>
     <div id="groups"></div>
-    <section id="vodGroup"><h2>点播 · 电视剧 电影</h2><div class="row"></div></section>
+    <section id="vodGroup" style="--c: var(--accent)">
+      <h2><span class="icon">🎬</span>点播 · 电视剧 电影</h2><div class="row"></div>
+    </section>
+    <div class="keys"><span><kbd>↑↓←→</kbd>选择</span><span><kbd>OK</kbd>观看</span><span><kbd>返回</kbd>上一页</span></div>
   </div>
 
   <div id="browse" class="screen scroll">
-    <header><h1 id="browseTitle"></h1></header>
-    <p class="hint">按 <b>返回</b> 回到频道列表</p>
+    <header><h1 id="browseTitle" style="font-size:48px;margin:0"></h1></header>
     <input id="searchBox" class="hidden" type="search" placeholder="输入片名，例如：神雕侠侣、康熙王朝" autocomplete="off">
     <p id="browseMsg"></p>
     <div id="cards" class="cards"></div>
+    <div class="keys"><span><kbd>↑↓←→</kbd>选择</span><span><kbd>OK</kbd>播放</span><span><kbd>返回</kbd>回到频道</span></div>
   </div>
 
   <div id="player" class="screen">
