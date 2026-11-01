@@ -10,8 +10,10 @@
 
   const SEEK_SECONDS = 30;
   const HISTORY_MAX = 12;
+  const RECENT_MAX = 4;  // live channels in the "最近看过" row
 
   const channels = window.CHANNEL_GROUPS.flatMap((g) => g.channels);
+  const channelColor = window.CHANNEL_GROUPS.flatMap((g) => g.channels.map(() => g.color));
   let catalog = null;
 
   const $ = (id) => document.getElementById(id);
@@ -60,7 +62,12 @@
     const leaving = stack.pop();
     if (leaving === 'player') stopPlayback();
     show(current());
-    if (current() === 'home') renderContinue();
+    if (current() === 'home') {
+      renderRecent();
+      renderContinue();
+      showHomeHint();  // puts the focus on the top "最近看过" tile
+      return;
+    }
     restoreFocus(current());
   });
 
@@ -130,6 +137,31 @@
     b.innerHTML = `<span class="name">${esc(name)}</span><span class="sub">${esc(sub || '')}</span>`;
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  function rememberChannel(ch) {
+    store.set('last', ch.id);
+    const recent = store.get('recent', []).filter((id) => id !== ch.id);
+    store.set('recent', [ch.id, ...recent].slice(0, RECENT_MAX));
+  }
+
+  // The last few live channels, newest first, at the top of the home screen. These tiles come
+  // first in the page, so tileFor() (and the focus on start-up) lands on the top row.
+  function renderRecent() {
+    const sec = $('recent');
+    const row = sec.querySelector('.row');
+    row.innerHTML = '';
+    const last = store.get('last', null);
+    const ids = store.get('recent', last ? [last] : []);  // older versions only kept 'last'
+    const idxs = ids.map((id) => channels.findIndex((c) => c.id === id)).filter((i) => i >= 0);
+    sec.classList.toggle('hidden', !idxs.length);
+    for (const i of idxs) {
+      const ch = channels[i];
+      const t = makeTile(ch.name, ch.sub, () => openLive(i), { index: i });
+      if (channelColor[i]) t.style.setProperty('--c', channelColor[i]);
+      t.insertAdjacentHTML('beforeend', `<span class="num">${String(i + 1).padStart(2, '0')}</span>`);
+      row.appendChild(t);
+    }
   }
 
   // "上次看" pill on the channel he watched last, in place of its number.
@@ -344,7 +376,7 @@
     const ch = channels[idx];
     if (ch.sources[0].type === 'web') {
       // Goes straight to CCTV's page, so Back from there lands on this list, not an empty player.
-      store.set('last', ch.id);
+      rememberChannel(ch);
       openPage(ch.sources[0].url);
       return;
     }
@@ -356,7 +388,7 @@
   function playChannel(idx) {
     stopPlayback();
     const ch = channels[idx];
-    store.set('last', ch.id);
+    rememberChannel(ch);
     const good = store.get('good.' + ch.id, 0);
     const first = good < ch.sources.length ? good : 0;
     const order = [first, ...ch.sources.map((_, i) => i).filter((i) => i !== first)];
@@ -828,6 +860,7 @@
 
   buildHome();
   buildVodTiles();
+  renderRecent();
   renderContinue();
   tickClock();
   setInterval(tickClock, 10000);
