@@ -42,7 +42,7 @@ jobs:
       # The ?v= stamp makes the TV fetch fresh scripts after every update instead of cached ones.
       - name: Stage site
         run: |
-          mkdir site && cp index.html app.js channels.js catalog.json site/
+          mkdir site && cp -r index.html app.js channels.js catalog.json vendor site/
           sed -i -E "s/(app|channels)\.js\"/\1.js?v=${GITHUB_SHA::7}\"/g" site/index.html
 
       - uses: actions/upload-pages-artifact@v3
@@ -59,7 +59,10 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build APK
-        run: gradle -p android assembleDebug -PappUrl=https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        # Lower case: Android reports the address that way, and the app compares against it.
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          gradle -p android assembleDebug -PappUrl=https://$OWNER.github.io/${{ github.event.repository.name }}/
 
       - name: Publish APK as the "latest" release
         env:
@@ -67,7 +70,7 @@ jobs:
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk dads-tv.apk
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dads-tv.apk --title '家庭电视' --notes 'Install dads-tv.apk on the TV box.'
+          gh release create latest dads-tv.apk --title '区tv' --notes 'Install dads-tv.apk on the TV box.'
 
   pages:
     needs: build

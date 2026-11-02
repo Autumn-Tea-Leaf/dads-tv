@@ -3,7 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>家庭电视</title>
+<title>区tv</title>
+<script>
+  // Plain old JavaScript on purpose, so it runs even on very old TV-box web engines:
+  // if the app breaks, show why on screen instead of leaving a blank page.
+  (function () {
+    function report(msg) {
+      var box = document.getElementById('dadtv-error');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'dadtv-error';
+        box.style.cssText = 'position:fixed;left:5%;right:5%;top:10%;z-index:2147483647;padding:24px 32px;' +
+          'background:#2a1416;color:#fff;border:3px solid #ff7b5c;border-radius:16px;font:22px/1.5 sans-serif;';
+        box.innerHTML = '<b style="font-size:30px">程序没有正常启动 / The app did not start</b><br>' +
+          '请把这个画面拍照发给帮你安装的人。Please photo this screen and send it on.<br><br>';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      var line = document.createElement('div');
+      line.textContent = msg;
+      box.appendChild(line);
+    }
+    window.onerror = function (msg, src, line) {
+      report('Error: ' + msg + ' (' + String(src || '').split('/').pop() + ':' + line + ')');
+    };
+    setTimeout(function () {
+      if (!window.__dadtvStarted) report('Not started after 15s. Browser: ' + navigator.userAgent);
+    }, 15000);
+  })();
+</script>
 <style>
   :root {
     --bg: #12141a;
@@ -26,7 +53,7 @@
                 radial-gradient(900px 500px at 100% 0%, #1d2a33 0%, transparent 55%), var(--bg); }
 
   /* ---------- screens ---------- */
-  .screen { position: fixed; inset: 0; display: none; }
+  .screen { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: none; }
   .screen.on { display: block; }
   .scroll { overflow-y: auto; padding: 36px 56px 140px; scroll-behavior: smooth; }
 
@@ -45,7 +72,7 @@
   section h2::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, var(--c), transparent); opacity: .5; }
 
   /* ---------- live channel tiles ---------- */
-  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 22px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); grid-gap: 22px; gap: 22px; }
   .tile { position: relative; background: var(--tile); color: var(--text); border: 4px solid transparent;
     border-radius: var(--radius); padding: 22px 22px 22px 30px; min-height: 140px; text-align: left; cursor: pointer;
     font: inherit; display: flex; flex-direction: column; justify-content: center; gap: 8px; outline: none;
@@ -60,7 +87,7 @@
   .tile.down .sub::after { content: " · 暂时无法播放"; color: var(--warn); }
 
   /* ---------- poster cards (dramas, movies) ---------- */
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); grid-gap: 24px; gap: 24px; }
   .card { background: var(--tile); color: var(--text); border: 4px solid transparent; border-radius: var(--radius);
     padding: 0; overflow: hidden; text-align: left; cursor: pointer; font: inherit; outline: none;
     transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
@@ -92,7 +119,7 @@
 
   /* ---------- player ---------- */
   #player { background: #000; }
-  #video, #yt, #yt iframe, #web { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  #video, #yt, #yt iframe, #web { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; border: 0; background: #000; }
   #video { object-fit: contain; }
   .hidden { display: none !important; }
 
@@ -173,7 +200,7 @@
     <div id="bar" class="fade"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <script src="vendor/hls.min.js"></script>  <!-- hls.js 1.5.17, kept here so the TV box needs no extra site -->
   <script src="channels.js"></script>
   <script src="app.js"></script>
 </body>

@@ -12,8 +12,12 @@
   const HISTORY_MAX = 12;
   const RECENT_MAX = 4;  // live channels in the "最近看过" row
 
-  const channels = window.CHANNEL_GROUPS.flatMap((g) => g.channels);
-  const channelColor = window.CHANNEL_GROUPS.flatMap((g) => g.channels.map(() => g.color));
+  // Written for old TV-box web engines (Chrome ~55+): no flatMap, object spread, optional
+  // catch bindings, padStart, NodeList.forEach or isConnected.
+  const flat = (lists) => [].concat.apply([], lists);
+  const channels = flat(window.CHANNEL_GROUPS.map((g) => g.channels));
+  const channelColor = flat(window.CHANNEL_GROUPS.map((g) => g.channels.map(() => g.color)));
+  const pad2 = (n) => (n < 10 ? '0' : '') + n;
   let catalog = null;
 
   const $ = (id) => document.getElementById(id);
@@ -23,15 +27,15 @@
   const searchBox = $('searchBox');
 
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('dadtv.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-    set(k, v) { try { localStorage.setItem('dadtv.' + k, JSON.stringify(v)); } catch { /* private mode */ } },
+    get(k, d) { try { const v = localStorage.getItem('dadtv.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('dadtv.' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const clock = (sec) => {
     sec = Math.max(0, Math.floor(sec || 0));
     const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
-    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+    return (h ? h + ':' + pad2(m) : m) + ':' + pad2(s);
   };
 
   // ---------------------------------------------------------------- screens
@@ -43,7 +47,7 @@
   const current = () => stack[stack.length - 1];
 
   function show(name) {
-    for (const [k, el] of Object.entries(screens)) el.classList.toggle('on', k === name);
+    Object.keys(screens).forEach((k) => screens[k].classList.toggle('on', k === name));
   }
 
   function pushScreen(name) {
@@ -78,7 +82,7 @@
 
   function restoreFocus(scr) {
     const el = focusMemory[scr];
-    if (el && el.isConnected && !el.closest('.hidden')) focusEl(el);
+    if (el && document.body.contains(el) && !el.closest('.hidden')) focusEl(el);
     else focusEl(focusables(scr)[0]);
   }
 
@@ -123,7 +127,7 @@
       for (const ch of g.channels) {
         const i = index++;
         const t = makeTile(ch.name, ch.sub, () => openLive(i), { index: i });
-        t.insertAdjacentHTML('beforeend', `<span class="num">${String(i + 1).padStart(2, '0')}</span>`);
+        t.insertAdjacentHTML('beforeend', `<span class="num">${pad2(i + 1)}</span>`);
         row.appendChild(t);
       }
       root.appendChild(sec);
@@ -159,14 +163,14 @@
       const ch = channels[i];
       const t = makeTile(ch.name, ch.sub, () => openLive(i), { index: i });
       if (channelColor[i]) t.style.setProperty('--c', channelColor[i]);
-      t.insertAdjacentHTML('beforeend', `<span class="num">${String(i + 1).padStart(2, '0')}</span>`);
+      t.insertAdjacentHTML('beforeend', `<span class="num">${pad2(i + 1)}</span>`);
       row.appendChild(t);
     }
   }
 
   // "上次看" pill on the channel he watched last, in place of its number.
   function markLastWatched(idx) {
-    document.querySelectorAll('.tile .badge').forEach((b) => b.remove());
+    [...document.querySelectorAll('.tile .badge')].forEach((b) => b.parentNode.removeChild(b));
     const t = tileFor(idx);
     if (t) t.insertAdjacentHTML('beforeend', '<span class="badge">上次看</span>');
   }
@@ -406,7 +410,7 @@
     clearInterval(s.timer);
     clearTimeout(s.retryTimer);
     if (s.hls) { s.hls.destroy(); s.hls = null; }
-    if (s.yt) { try { s.yt.destroy(); } catch { /* already gone */ } s.yt = null; }
+    if (s.yt) { try { s.yt.destroy(); } catch (e) { /* already gone */ } s.yt = null; }
     clearMedia();
   }
 
@@ -626,14 +630,14 @@
     showLayer('yt');
     const el = document.createElement('div');
     ytBox.appendChild(el);
-    return new YT.Player(el, { width: '100%', height: '100%', ...opts });
+    return new YT.Player(el, Object.assign({ width: '100%', height: '100%' }, opts));
   }
 
   function startYt(s, attempt, src) {
     showLayer('yt');
     loadYtApi().then(() => {
       if (!isCurrent(s, attempt)) return;
-      const playerVars = { ...YT_VARS };
+      const playerVars = Object.assign({}, YT_VARS);
       if (src.channel) playerVars.channel = src.channel;
       s.yt = createYt({
         videoId: src.video || 'live_stream',
@@ -670,7 +674,7 @@
     setStatus('正在加载…', { loading: true });
     loadYtApi().then(() => {
       if (vod !== state) return;
-      const playerVars = { ...YT_VARS };
+      const playerVars = Object.assign({}, YT_VARS);
       const opts = { playerVars };
       if (item.type === 'playlist') {
         playerVars.listType = 'playlist';
@@ -680,14 +684,13 @@
         opts.videoId = item.id;
         if (h && h.t > 30) playerVars.start = Math.floor(h.t - 5);
       }
-      state.yt = createYt({
-        ...opts,
+      state.yt = createYt(Object.assign(opts, {
         events: {
           onReady: (e) => { if (vod === state) { e.target.getIframe().tabIndex = -1; e.target.playVideo(); } },
           onStateChange: (e) => { if (vod === state) onVodState(state, e.data); },
           onError: () => { if (vod === state) onVodError(state); },
         },
-      });
+      }));
       state.timer = setInterval(() => vodTick(state), 1000);
     }).catch(() => setStatus('YouTube 打不开，请检查网络', { warn: true }));
   }
@@ -747,7 +750,7 @@
     if (!vod) return;
     saveVod(vod);
     clearInterval(vod.timer);
-    try { vod.yt && vod.yt.destroy(); } catch { /* already gone */ }
+    try { vod.yt && vod.yt.destroy(); } catch (e) { /* already gone */ }
     vod = null;
   }
 
@@ -866,4 +869,5 @@
   setInterval(tickClock, 10000);
   showHomeHint();
   loadCatalog();
+  window.__dadtvStarted = true;  // tells the start-up check in index.html we got this far
 })();
