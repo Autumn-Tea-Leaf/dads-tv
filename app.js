@@ -58,11 +58,23 @@
   }
 
   function goBack() {
-    if (stack.length > 1) history.back();
+    if (stack.length < 2) return;
+    if (window.DadTV) popScreen();  // TV app: don't depend on WebView history
+    else history.back();
   }
 
-  window.addEventListener('popstate', () => {
-    if (stack.length < 2) return;
+  // The TV app calls this for the remote's Back key instead of relying on WebView's history,
+  // which doesn't step through these screens on every box. Returns false on the home screen,
+  // so the app knows to offer "press again to exit".
+  window.dadtvBack = () => {
+    if (stack.length < 2) return false;
+    popScreen();
+    return true;
+  };
+
+  window.addEventListener('popstate', () => { if (stack.length >= 2) popScreen(); });
+
+  function popScreen() {
     const leaving = stack.pop();
     if (leaving === 'player') stopPlayback();
     show(current());
@@ -73,7 +85,7 @@
       return;
     }
     restoreFocus(current());
-  });
+  }
 
   document.addEventListener('focusin', (e) => {
     const scr = current();

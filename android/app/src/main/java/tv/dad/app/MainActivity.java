@@ -22,6 +22,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,6 +36,8 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A full-screen browser locked to Dad's TV page. The page does all the work; this class
@@ -55,6 +58,8 @@ public class MainActivity extends Activity {
     private boolean usingBundled;  // the online page failed, so we're showing the built-in copy
     private boolean showingError;  // the error page is up; OK retries
     private String mainUrl = "";   // the top-level page we last asked WebView to load
+    private View cover;            // black screen over CCTV/TVB pages until they're full screen
+    private boolean backDown;      // saw a fresh Back press; act on its release
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -82,8 +87,14 @@ public class MainActivity extends Activity {
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setLoadWithOverviewMode(true);
+        ws.setLoadWithOverviewMode(true);  // with the page's width=1600 viewport: fit the TV exactly
         ws.setUseWideViewPort(true);
+        ws.setTextZoom(100);               // ignore the box's font-size setting; the page sizes itself
+        // Present as desktop Chrome (same engine version), like "request desktop site": CCTV's
+        // mobile site keeps pushing its phone app, and the desktop players are what we tested.
+        Matcher chrome = Pattern.compile("Chrome/[\\d.]+").matcher(ws.getUserAgentString());
+        ws.setUserAgentString("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                + (chrome.find() ? chrome.group() : "Chrome/120.0.0.0") + " Safari/537.36");
 
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient() {
@@ -101,7 +112,13 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 // Backup for WebViews without document-start scripts; the script ignores a second run.
-                if (isLiveSite(url)) view.evaluateJavascript(fullscreenJs, null);
+                if (isLiveSite(url)) {
+                    view.evaluateJavascript(fullscreenJs, null);
+                    cover.removeCallbacks(hideCover);
+                    cover.postDelayed(hideCover, 1500);  // by then the page is full screen
+                } else {
+                    cover.setVisibility(View.GONE);
+                }
                 // After switching to the built-in copy or showing the error page, don't let Back
                 // return to the page that failed.
                 if ((usingBundled && sameUrl(url, BUNDLED_URL)) || showingError) view.clearHistory();
@@ -150,8 +167,28 @@ public class MainActivity extends Activity {
         web.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
-        setContentView(web);
+        cover = new View(this);
+        cover.setBackgroundColor(Color.BLACK);
+        cover.setVisibility(View.GONE);
+        FrameLayout root = new FrameLayout(this);
+        root.addView(web);
+        root.addView(cover);
+        setContentView(root);
+        // Without focus, the remote's arrow keys never reach the page.
+        web.setFocusable(true);
+        web.setFocusableInTouchMode(true);
+        web.requestFocus();
         loadHome();
+    }
+
+    private final Runnable hideCover = () -> cover.setVisibility(View.GONE);
+
+    /** Our own page (online or built-in), as opposed to CCTV's or TVB's site. */
+    private static boolean isAppPage(String url) {
+        if (url == null) return false;
+        String u = url.toLowerCase();
+        return u.startsWith("https://appassets.androidplatform.net/")
+                || (!BuildConfig.APP_URL.isEmpty() && u.startsWith(BuildConfig.APP_URL.toLowerCase()));
     }
 
     private String homeUrl() {
@@ -228,12 +265,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openPage(final String url) {
             if (!isLiveSite(url)) return;  // only the broadcasters' own live sites
-            runOnUiThread(() -> loadMain(url));
+            runOnUiThread(() -> {
+                cover.removeCallbacks(hideCover);
+                cover.setVisibility(View.VISIBLE);  // hide the site until it's been made full screen
+                loadMain(url);
+            });
         }
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (web == null) return super.dispatchKeyEvent(event);  // the "no WebView" message screen
         int key = event.getKeyCode();
         if (showingError && (key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER)) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
@@ -242,31 +284,60 @@ public class MainActivity extends Activity {
             }
             return true;
         }
-        boolean back = key == KeyEvent.KEYCODE_BACK;
-        if (back && event.getAction() == KeyEvent.ACTION_UP) {
-            if (web.canGoBack() && !showingError) {
-                web.goBack();  // the page turns this into "close player" / "previous screen"
-            } else if (System.currentTimeMillis() - lastBackAt < 2500) {
-                finish();
-            } else {
-                lastBackAt = System.currentTimeMillis();
-                Toast.makeText(this, "再按一次返回键退出", Toast.LENGTH_SHORT).show();
+        boolean back = key == KeyEvent.KEYCODE_BACK || key == KeyEvent.KEYCODE_ESCAPE
+                || key == KeyEvent.KEYCODE_BUTTON_B;  // some remotes/gamepads send these for Back
+        if (back) {
+            // Act once per press: on release of a fresh press, ignoring held-down repeats and
+            // a stray release from a press that started somewhere else.
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                backDown = true;
+            } else if (event.getAction() == KeyEvent.ACTION_UP && backDown && !event.isCanceled()) {
+                backDown = false;
+                onBackKey();
             }
             return true;
         }
-        if (back) return true;
         return super.dispatchKeyEvent(event);
+    }
+
+    /**
+     * Back: on CCTV/TVB pages, return to our home screen. On our page, ask it to go back one
+     * screen (it answers false when it's already on the home screen). Only then offer to exit.
+     */
+    private void onBackKey() {
+        if (showingError) {
+            confirmExit();
+        } else if (!isAppPage(web.getUrl())) {
+            // On CCTV/TVB (or anywhere they redirected to): straight back to our home screen,
+            // not through the site's own history.
+            loadHome();
+        } else {
+            web.evaluateJavascript("(window.dadtvBack ? window.dadtvBack() : false)", handled -> {
+                if (!"true".equals(handled)) confirmExit();
+            });
+        }
+    }
+
+    private void confirmExit() {
+        if (System.currentTimeMillis() - lastBackAt < 2500) {
+            finish();
+        } else {
+            lastBackAt = System.currentTimeMillis();
+            Toast.makeText(this, "再按一次返回键退出", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        web.onPause();
+        if (web != null) web.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (web == null) return;  // no WebView on this box (see onCreate)
         web.onResume();
+        web.requestFocus();
     }
 }

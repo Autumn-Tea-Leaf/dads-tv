@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>区tv</title>
 <script>
+  // Inside the TV app (window.DadTV), lay the page out as a 1600px-wide screen and let the
+  // app scale it to the TV. TV boxes often report half their real resolution, which made
+  // everything twice as big.
+  if (window.DadTV) {
+    document.querySelector('meta[name=viewport]').setAttribute('content', 'width=1600');
+    document.documentElement.className += ' tv';
+  }
+</script>
+<script>
   // Plain old JavaScript on purpose, so it runs even on very old TV-box web engines:
   // if the app breaks, show why on screen instead of leaving a blank page.
   (function () {
@@ -24,6 +33,9 @@
       box.appendChild(line);
     }
     window.onerror = function (msg, src, line) {
+      // Only start-up failures matter here. Later errors (e.g. while leaving for CCTV/TVB) and
+      // YouTube's opaque "Script error." aren't worth a red box over the picture.
+      if (window.__dadtvStarted || msg === 'Script error.') return;
       report('Error: ' + msg + ' (' + String(src || '').split('/').pop() + ':' + line + ')');
     };
     setTimeout(function () {
@@ -48,6 +60,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif; }
+  html.tv, html.tv body { overflow-x: hidden; }  /* any sideways overflow makes the TV app zoom out */
   body { overflow: hidden;
     background: radial-gradient(1100px 600px at 0% -10%, #2b2433 0%, transparent 60%),
                 radial-gradient(900px 500px at 100% 0%, #1d2a33 0%, transparent 55%), var(--bg); }
@@ -101,7 +114,7 @@
 
   /* The one thing that must be obvious from the sofa: what is selected. */
   .tile:focus, .tile:hover, .card:focus, .card:hover {
-    border-color: var(--accent); transform: scale(1.06); background: var(--tile-hi); z-index: 1;
+    border-color: var(--accent); background: var(--tile-hi); z-index: 1;  /* no zoom: it blurs text on TV chips */
     box-shadow: inset 8px 0 0 var(--c), 0 14px 34px rgba(0,0,0,.5), 0 0 0 8px var(--accent-glow); }
   .card:focus, .card:hover { box-shadow: 0 14px 34px rgba(0,0,0,.5), 0 0 0 8px var(--accent-glow); }
 
@@ -111,7 +124,7 @@
   #browseMsg { font-size: 26px; color: var(--muted); }
 
   /* ---------- remote-key reminder ---------- */
-  .keys { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 30px;
+  .keys { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); display: flex; gap: 30px;  /* 5vh: clear of TV overscan */
     padding: 14px 30px; border-radius: 999px; background: rgba(18,20,26,.9); border: 1px solid rgba(255,255,255,.08);
     box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: 22px; color: var(--muted); white-space: nowrap; z-index: 5; }
   .keys kbd { font: inherit; font-weight: 700; color: var(--text); background: var(--tile-hi); border-radius: 8px;
