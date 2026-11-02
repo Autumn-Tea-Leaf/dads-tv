@@ -66,8 +66,9 @@ def wait_state(cond, timeout=30, tag='DADTV_STATE'):
 
 def start(fragment):
     fresh_log()
-    adb('shell', 'am', 'start', '-n', PKG + '/.MainActivity', '-a', 'android.intent.action.VIEW',
-        '-d', 'dadtv://test#' + fragment)
+    # One quoted shell string: the device shell would otherwise treat '&' as "end of command".
+    adb('shell', "am start -n %s/.MainActivity -a android.intent.action.VIEW -d 'dadtv://test#%s'"
+        % (PKG, fragment))
 
 
 def record(name, ok, **detail):
@@ -82,9 +83,12 @@ def back_home(label):
     record(label + ': Back returns to home', state and state.get('screen') == 'home', state=state)
 
 
-def live(channel_id, label, web, wait):
+def live(channel_id, label, web, wait, tile_name):
     start('test&focus=' + channel_id)
-    wait_state(lambda s: s.get('focused'), 30)
+    focused = (wait_state(lambda s: s.get('focused') == tile_name, 30) or {}).get('focused')
+    if focused != tile_name:
+        record(label + ': tile selected', False, focused=focused)
+        return
     fresh_log()
     key(23, 2)  # KEYCODE_DPAD_CENTER (OK)
     if web:  # CCTV / TVB official page: the extension reports the <video>
@@ -121,14 +125,15 @@ def main():
     record('D-pad moves focus', before != after, before=before, after=after)
     shot('02-after-dpad')
 
-    live('cgtn', 'CGTN', False, 30)
-    live('phoenix', 'Phoenix (YouTube)', False, 40)
-    live('cctv4', 'CCTV-4', True, 45)
-    live('tvbnews', 'TVB News', True, 45)
+    live('cgtn', 'CGTN', False, 30, 'CGTN')
+    live('phoenix', 'Phoenix (YouTube)', False, 40, '凤凰卫视')
+    live('cctv4', 'CCTV-4', True, 45, 'CCTV-4')
+    live('tvbnews', 'TVB News', True, 45, '無綫新聞台')
 
     # A drama: provider tile -> first card -> plays; Back twice: player -> list -> home
     start('test&focusvod=1')
-    wait_state(lambda s: s.get('focused'), 30)
+    focused = (wait_state(lambda s: (s.get('focused') or '').startswith('TVB'), 30) or {}).get('focused')
+    record('drama provider tile selected', (focused or '').startswith('TVB'), focused=focused)
     key(23, 3)
     fresh_log()
     key(23, 2)
