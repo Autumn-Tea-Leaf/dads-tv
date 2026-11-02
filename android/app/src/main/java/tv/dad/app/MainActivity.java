@@ -64,6 +64,7 @@ public class MainActivity extends Activity {
     private boolean usingBundled;  // the online page failed, so we're showing the built-in copy
     private boolean showingError;  // the error page is up; OK retries
     private String mainUrl = "";   // the top-level page we last asked WebView to load
+    private int onlineRetries;     // retries of the online page before using the built-in copy
     private View cover;            // black screen over CCTV/TVB pages until they're full screen
     private boolean backDown;      // saw a fresh Back press; act on its release
 
@@ -258,6 +259,14 @@ public class MainActivity extends Activity {
         Log.w("DadTV", "page failed: " + url + " -> " + reason);
         if (showingError) return;
         if (!usingBundled && !BuildConfig.APP_URL.isEmpty() && sameUrl(url, BuildConfig.APP_URL)) {
+            // Often the box's Wi-Fi just isn't up yet when the app starts: wait and retry the
+            // online page a few times before falling back (YouTube doesn't play from the
+            // built-in copy, so it's only a last resort).
+            if (onlineRetries < 4) {
+                onlineRetries++;
+                web.postDelayed(() -> loadMain(BuildConfig.APP_URL), 3000);
+                return;
+            }
             usingBundled = true;
             Toast.makeText(this, "网络版打不开，改用本机版本", Toast.LENGTH_LONG).show();
             loadMain(BUNDLED_URL);
@@ -396,5 +405,10 @@ public class MainActivity extends Activity {
         if (web == null) return;  // no WebView on this box (see onCreate)
         web.onResume();
         web.requestFocus();
+        if (usingBundled) {  // came back to the app: try the online page again
+            usingBundled = false;
+            onlineRetries = 0;
+            loadHome();
+        }
     }
 }
