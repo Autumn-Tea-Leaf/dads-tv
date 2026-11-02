@@ -1,4 +1,5 @@
-// Injected by the TV app into the broadcasters' official live pages (CCTV, TVB News).
+// Built-in extension script (see manifest.json) run on the broadcasters' official live pages
+// (CCTV, TVB News).
 // Hides everything except the video, stretches it over the whole screen, and makes sure it
 // plays with sound. These sites build their pages with JavaScript after loading and may
 // rebuild them, so the style is re-applied every half second for the first minute.
@@ -51,11 +52,22 @@
     if (window.console) console.warn('dadtv: ' + note.textContent);
   }
 
+  // Video status in the app log every 3 s, read by the automated device test.
+  function logState() {
+    var v = document.querySelector('video');
+    console.log('DADTV_VIDEO ' + JSON.stringify(v ? {
+      video: true, playing: !v.paused && v.currentTime > 0, t: Math.round(v.currentTime),
+      w: v.videoWidth, readyState: v.readyState, error: v.error && v.error.code,
+      fullscreen: Math.round(v.getBoundingClientRect().width) >= window.innerWidth - 2
+    } : { video: false }));
+  }
+
   apply();
   var timer = setInterval(function () {
     ticks++;
     apply();
     if (ticks === 24) explain();
+    if (ticks % 6 === 0) logState();
     if (ticks > 120) clearInterval(timer);
   }, 500);
 })();

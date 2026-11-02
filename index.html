@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>区tv</title>
 <script>
-  // Inside the TV app (window.DadTV), lay the page out as a 1600px-wide screen and let the
-  // app scale it to the TV. TV boxes often report half their real resolution, which made
-  // everything twice as big.
-  if (window.DadTV) {
+  // Inside the TV app (the "DadTV/" browser marker; window.DadTV on older app versions), lay
+  // the page out as a 1600px-wide screen and let the app scale it to the TV. TV boxes often
+  // report half their real resolution, which made everything twice as big.
+  window.IN_TV_APP = !!window.DadTV || /DadTV\//.test(navigator.userAgent);
+  if (window.IN_TV_APP) {
     document.querySelector('meta[name=viewport]').setAttribute('content', 'width=1600');
     document.documentElement.className += ' tv';
   }

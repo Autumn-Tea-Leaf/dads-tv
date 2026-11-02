@@ -59,7 +59,9 @@
 
   function goBack() {
     if (stack.length < 2) return;
-    if (window.DadTV) popScreen();  // TV app: don't depend on WebView history
+    // The old WebView app version can't step through page history reliably; GeckoView (and
+    // ordinary browsers) can, which also keeps the app's Back key and this in step.
+    if (window.DadTV) popScreen();
     else history.back();
   }
 
@@ -924,5 +926,31 @@
     played: session ? !!session.played : (vod ? !!vod.played : false),
     status: statusEl.classList.contains('hidden') ? '' : statusEl.innerText,
   });
+
+  // Device-test hook: the test starts the app with e.g. "#test&focus=cgtn" (or "focusvod=1"),
+  // then presses real remote keys and reads this state from the app log. Unused otherwise.
+  const testArgs = location.hash.slice(1).split('&');
+  if (testArgs.indexOf('test') >= 0) {
+    const arg = (name) => (testArgs.filter((a) => a.indexOf(name + '=') === 0)[0] || '').split('=')[1];
+    setTimeout(() => {
+      const ch = arg('focus'), vodIdx = arg('focusvod');
+      if (ch) focusEl(tileFor(channels.findIndex((c) => c.id === ch)));
+      if (vodIdx) focusEl(document.querySelectorAll('#vodGroup .tile')[+vodIdx]);
+    }, 2500);
+    setInterval(() => {
+      const tiles = document.querySelectorAll('#groups .tile');
+      const s = Object.assign(window.dadtvDebug(), {
+        started: true,
+        errorBox: !!document.getElementById('dadtv-error'),
+        layoutWidth: innerWidth,
+        rowsSideBySide: tiles.length > 1 && tiles[0].getBoundingClientRect().top === tiles[1].getBoundingClientRect().top,
+        headerVisible: $('greet').getBoundingClientRect().top >= 0,
+        focused: document.activeElement ? (document.activeElement.innerText || '').split('\n')[0] : null,
+        vodTiles: document.querySelectorAll('#vodGroup .tile').length,
+      });
+      console.log('DADTV_STATE ' + JSON.stringify(s));
+    }, 2000);
+  }
+
   window.__dadtvStarted = true;  // tells the start-up check in index.html we got this far
 })();

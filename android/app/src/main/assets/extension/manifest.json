@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "区tv full screen",
+  "version": "1.0",
+  "description": "Shows only the video on CCTV's and TVB News' official live pages, full screen.",
+  "browser_specific_settings": { "gecko": { "id": "fullscreen@dad.tv" } },
+  "content_scripts": [
+    {
+      "matches": ["https://tv.cctv.com/*", "https://news.tvb.com/*"],
+      "js": ["fullscreen.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

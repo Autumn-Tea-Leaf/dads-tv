@@ -21,8 +21,10 @@ jobs:
         include:
           - api: 25
             arch: x86
+            apk: dads-tv-x86.apk
           - api: 31
             arch: x86_64
+            apk: dads-tv-x86_64.apk
     steps:
       - uses: actions/checkout@v4
 
@@ -35,13 +37,11 @@ jobs:
       - name: Download the latest APK
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download latest --pattern dads-tv.apk
+        run: gh release download latest --pattern ${{ matrix.apk }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - run: pip install websocket-client
 
       - uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -50,7 +50,7 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 tools/device_test.py dads-tv.apk device-test-api${{ matrix.api }}
+          script: python3 tools/device_test.py ${{ matrix.apk }} device-test-api${{ matrix.api }}
 
       - uses: actions/upload-artifact@v4
         if: always()

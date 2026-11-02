@@ -68,9 +68,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk dads-tv.apk
+          D=android/app/build/outputs/apk/debug
+          cp $D/app-armeabi-v7a-debug.apk dads-tv.apk        # TV boxes (32- and 64-bit ARM)
+          cp $D/app-arm64-v8a-debug.apk   dads-tv-arm64.apk
+          cp $D/app-x86-debug.apk         dads-tv-x86.apk    # emulator tests
+          cp $D/app-x86_64-debug.apk      dads-tv-x86_64.apk
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dads-tv.apk --title '区tv' --notes 'Install dads-tv.apk on the TV box.'
+          gh release create latest dads-tv.apk dads-tv-arm64.apk dads-tv-x86.apk dads-tv-x86_64.apk             --title '区tv' --notes 'Install dads-tv.apk on the TV box (works on 32- and 64-bit ARM boxes).'
 
   pages:
     needs: build
