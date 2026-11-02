@@ -155,8 +155,36 @@ def main():
     shot('99-end')
 
 
+def mostly_white(path):
+    from PIL import Image  # pip install pillow
+    im = Image.open(path).convert('L').resize((64, 36))
+    px = list(im.getdata())
+    return sum(1 for p in px if p > 225) / len(px) > 0.6
+
+
+def long_play(channel_id, tile_name, minutes=3):
+    """Play one CCTV/TVB channel for several minutes; screenshot and check every 30 s."""
+    print(adb('install', '-r', '-g', APK, timeout=300), flush=True)
+    start('test&focus=' + channel_id)
+    wait_state(lambda s: s.get('focused') == tile_name, 60)
+    fresh_log()
+    key(23, 2)
+    for i in range(minutes * 2):
+        time.sleep(30)
+        name = 'long-%s-%03ds' % (channel_id, (i + 1) * 30)
+        shot(name)
+        video = latest('DADTV_VIDEO')
+        white = mostly_white(os.path.join(OUT, name + '.png'))
+        record('%s at %ds: picture shown' % (tile_name, (i + 1) * 30),
+               not white and bool(video and video.get('playing')), white=white, video=video)
+
+
 try:
-    main()
+    if len(sys.argv) > 3 and sys.argv[3] == 'long':
+        long_play('tvbnews', '無綫新聞台')
+        long_play('cctv4', 'CCTV-4', 2)
+    else:
+        main()
 finally:
     full_log.append(adb('logcat', '-d', '-v', 'time'))
     with open(os.path.join(OUT, 'logcat.txt'), 'w', encoding='utf-8') as f:

@@ -9,6 +9,10 @@ on:
     workflows: [Build]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "'full' (all checks) or 'long' (TVB/CCTV for minutes, screenshots)"
+        default: full
 
 jobs:
   emulator:
@@ -43,6 +47,8 @@ jobs:
         with:
           python-version: '3.12'
 
+      - run: pip install pillow
+
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
@@ -50,7 +56,7 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 tools/device_test.py ${{ matrix.apk }} device-test-api${{ matrix.api }}
+          script: python3 tools/device_test.py ${{ matrix.apk }} device-test-api${{ matrix.api }} ${{ inputs.mode || 'full' }}
 
       - uses: actions/upload-artifact@v4
         if: always()

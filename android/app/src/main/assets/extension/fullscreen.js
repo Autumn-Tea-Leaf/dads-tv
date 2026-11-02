@@ -62,12 +62,17 @@
     } : { video: false }));
   }
 
+  // Every half second for the first minute, then every 2 s for as long as the page is open: a
+  // site may rebuild its page or swap its player at any time, and full screen must survive it.
   apply();
   var timer = setInterval(function () {
     ticks++;
     apply();
     if (ticks === 24) explain();
     if (ticks % 6 === 0) logState();
-    if (ticks > 120) clearInterval(timer);
+    if (ticks >= 120) {
+      clearInterval(timer);
+      setInterval(function () { ticks++; apply(); if (ticks % 5 === 0) logState(); }, 2000);
+    }
   }, 500);
 })();
