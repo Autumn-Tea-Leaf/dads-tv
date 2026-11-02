@@ -7,6 +7,73 @@
   if (window.__dadtvFullscreen) return;
   window.__dadtvFullscreen = true;
 
+  // Keep streams at 720p or below. TVB offers 1080p (H.264 High profile, level 4.2) and 720p
+  // (Main profile); old TV-box video chips can lose the picture on the 1080p one while the sound
+  // carries on. This runs in the page itself (a <script>), removes variants taller than 720 from
+  // any HLS master playlist the site's player downloads (fetch or XMLHttpRequest), and only if
+  // a 720p-or-lower variant remains.
+  function capStreams() {
+    function cap(text) {
+      if (text.indexOf('#EXT-X-STREAM-INF') < 0) return text;
+      var lines = text.split('\n'), out = [], kept = 0, dropped = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (line.indexOf('#EXT-X-STREAM-INF') === 0) {
+          var m = /RESOLUTION=\d+x(\d+)/.exec(line);
+          if (m && +m[1] > 720) {
+            dropped++;
+            while (i + 1 < lines.length && (lines[i + 1].trim() === '' || lines[i + 1].charAt(0) === '#')) i++;
+            i++;  // the variant's playlist address
+            continue;
+          }
+          kept++;
+        }
+        out.push(line);
+      }
+      return kept && dropped ? out.join('\n') : text;
+    }
+    var isPlaylist = function (url) { return /\.m3u8(\?|$)/.test(url || ''); };
+
+    var realFetch = window.fetch;
+    if (realFetch) {
+      window.fetch = function (input) {
+        return realFetch.apply(this, arguments).then(function (r) {
+          var url = r.url || (typeof input === 'string' ? input : input && input.url);
+          if (!r.ok || !isPlaylist(url)) return r;
+          return r.clone().text().then(function (t) {
+            var c = cap(t);
+            if (c === t) return r;
+            var copy = new Response(c, { status: r.status, statusText: r.statusText, headers: r.headers });
+            try { Object.defineProperty(copy, 'url', { value: r.url }); } catch (e) { /* keep going */ }
+            return copy;
+          });
+        });
+      };
+    }
+
+    var P = XMLHttpRequest.prototype, realOpen = P.open;
+    P.open = function (method, url) {
+      this.__dadtvUrl = String(url);
+      return realOpen.apply(this, arguments);
+    };
+    ['responseText', 'response'].forEach(function (name) {
+      var d = Object.getOwnPropertyDescriptor(P, name);
+      if (!d || !d.get) return;
+      Object.defineProperty(P, name, {
+        configurable: true,
+        get: function () {
+          var v = d.get.call(this);
+          return this.readyState === 4 && typeof v === 'string' && isPlaylist(this.__dadtvUrl || this.responseURL)
+            ? cap(v) : v;
+        }
+      });
+    });
+  }
+  var pageScript = document.createElement('script');
+  pageScript.textContent = '(' + capStreams.toString() + ')();';
+  (document.head || document.documentElement).appendChild(pageScript);
+  pageScript.parentNode.removeChild(pageScript);
+
   // The element to enlarge: CCTV's whole player box, or just the video elsewhere.
   var p = /(^|\.)cctv\.com$/.test(location.hostname) ? '#player' : 'video';
   var css =
