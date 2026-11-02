@@ -573,7 +573,7 @@
     teardownLine(s);
     const t = tileFor(s.idx);
     if (t) t.classList.add('down');
-    setStatus('这个频道现在看不了，请按 ▲▼ 换台', { warn: true });
+    setStatus('这个频道现在看不了，请按 ▲▼ 换台' + (s.lastError ? `（${s.lastError}）` : ''), { warn: true });
   }
 
   function switchLineManually(step) {
@@ -701,7 +701,12 @@
             else if (e.data === YT.PlayerState.BUFFERING) onWaiting();
             else if (e.data === YT.PlayerState.ENDED) nextLine('直播结束');
           },
-          onError: () => { if (isCurrent(s, attempt)) nextLine('线路不可用'); },
+          onError: (e) => {
+            if (!isCurrent(s, attempt)) return;
+            s.lastError = 'YouTube 错误 ' + e.data;  // shown if every line fails, for a photo
+            console.log('DADTV_YT_ERROR ' + e.data);
+            nextLine('线路不可用');
+          },
         },
       });
     }).catch(() => { if (isCurrent(s, attempt)) nextLine('YouTube 打不开'); });
@@ -735,7 +740,7 @@
         events: {
           onReady: (e) => { if (vod === state) { e.target.getIframe().tabIndex = -1; e.target.playVideo(); } },
           onStateChange: (e) => { if (vod === state) onVodState(state, e.data); },
-          onError: () => { if (vod === state) onVodError(state); },
+          onError: (e) => { if (vod === state) onVodError(state, e.data); },
         },
       }));
       state.timer = setInterval(() => vodTick(state), 1000);
@@ -763,14 +768,15 @@
     }
   }
 
-  function onVodError(state) {
+  function onVodError(state, code) {
     state.errors += 1;
+    console.log('DADTV_YT_ERROR ' + code);
     const list = state.yt.getPlaylist && state.yt.getPlaylist();
     if (list && list.length > 1 && state.errors < 4) {
       setStatus('这一集不能在这里播放，跳到下一集…');
       setTimeout(() => { if (vod === state) state.yt.nextVideo(); }, 1500);
     } else {
-      setStatus('这个节目不能在这里播放，请按返回选别的', { warn: true });
+      setStatus(`这个节目不能在这里播放，请按返回选别的（YouTube 错误 ${code}）`, { warn: true });
     }
   }
 
