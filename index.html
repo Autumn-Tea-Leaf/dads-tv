@@ -79,20 +79,24 @@
   .hint { font-size: 26px; color: var(--muted); margin: 18px 0 8px; min-height: 34px; }
   .hint b { color: var(--accent); }
 
-  section h2 { display: flex; align-items: center; gap: 14px; font-size: 32px; font-weight: 700;
+  section h2 { display: flex; align-items: center; font-size: 32px; font-weight: 700;
     margin: 40px 0 16px; color: var(--text); }
-  section h2 .icon { font-size: 34px; }
+  section h2 .icon { font-size: 34px; margin-right: 14px; }
   section h2::after { content: ""; flex: 1; height: 2px; background: linear-gradient(90deg, var(--c), transparent); opacity: .5; }
 
   /* ---------- live channel tiles ---------- */
-  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); grid-gap: 22px; gap: 22px; }
+  /* Wrapping rows with margins, not CSS grid or flex gap: old TV-box web engines (pre-2017)
+     don't support those, and the tiles collapsed into one column on the left. */
+  .row { display: flex; flex-wrap: wrap; margin-right: -22px; }
+  .row > .tile { width: calc(20% - 22px); margin: 0 22px 22px 0; }
+  .row > .tile.wide { width: calc(60% - 22px); }
   .tile { position: relative; background: var(--tile); color: var(--text); border: 4px solid transparent;
     border-radius: var(--radius); padding: 22px 22px 22px 30px; min-height: 140px; text-align: left; cursor: pointer;
-    font: inherit; display: flex; flex-direction: column; justify-content: center; gap: 8px; outline: none;
+    font: inherit; display: flex; flex-direction: column; justify-content: center; outline: none;
     box-shadow: inset 8px 0 0 var(--c);
     transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, background .15s ease; }
   .tile .name { font-size: 36px; font-weight: 700; line-height: 1.15; }
-  .tile .sub { font-size: 20px; color: var(--muted); }
+  .tile .sub { font-size: 20px; color: var(--muted); margin-top: 6px; }
   .tile .num { position: absolute; top: 12px; right: 16px; font-size: 18px; color: var(--muted); opacity: .7;
     font-variant-numeric: tabular-nums; }
   .tile .badge { position: absolute; top: 10px; right: 12px; font-size: 17px; font-weight: 700; color: #1b1406;
@@ -100,7 +104,8 @@
   .tile.down .sub::after { content: " · 暂时无法播放"; color: var(--warn); }
 
   /* ---------- poster cards (dramas, movies) ---------- */
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); grid-gap: 24px; gap: 24px; }
+  .cards { display: flex; flex-wrap: wrap; margin-right: -24px; }
+  .cards > .card { width: calc(25% - 24px); margin: 0 24px 24px 0; }
   .card { background: var(--tile); color: var(--text); border: 4px solid transparent; border-radius: var(--radius);
     padding: 0; overflow: hidden; text-align: left; cursor: pointer; font: inherit; outline: none;
     transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
@@ -124,9 +129,10 @@
   #browseMsg { font-size: 26px; color: var(--muted); }
 
   /* ---------- remote-key reminder ---------- */
-  .keys { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); display: flex; gap: 30px;  /* 5vh: clear of TV overscan */
+  .keys { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); display: flex;  /* 5vh: clear of TV overscan */
     padding: 14px 30px; border-radius: 999px; background: rgba(18,20,26,.9); border: 1px solid rgba(255,255,255,.08);
     box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: 22px; color: var(--muted); white-space: nowrap; z-index: 5; }
+  .keys > span { margin: 0 14px; }
   .keys kbd { font: inherit; font-weight: 700; color: var(--text); background: var(--tile-hi); border-radius: 8px;
     padding: 2px 10px; margin-right: 8px; }
 
@@ -150,9 +156,9 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .fade { opacity: 0; }
 
-  #bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: center;
     padding: 22px; background: linear-gradient(transparent, rgba(0,0,0,.85)); transition: opacity .3s; }
-  #bar button { font: inherit; font-size: 24px; padding: 12px 22px; border-radius: 12px; border: 0;
+  #bar button { margin: 0 7px 10px; font: inherit; font-size: 24px; padding: 12px 22px; border-radius: 12px; border: 0;
     background: rgba(255,255,255,.15); color: var(--text); cursor: pointer; }
   #bar button:hover { background: var(--accent); color: #1b1406; }
 
@@ -165,12 +171,12 @@
     .scroll { padding: 20px 16px 110px; }
     #greet { font-size: 32px; } #greet small, .sub-title { font-size: 17px; }
     #time { font-size: 34px; } #date { font-size: 15px; }
-    .row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .cards { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .row, .cards { margin-right: -12px; }
+    .row > .tile, .cards > .card { width: calc(50% - 12px); margin: 0 12px 12px 0; }
     .tile { min-height: 100px; padding: 14px 14px 14px 22px; } .tile .name { font-size: 24px; } .tile .sub { font-size: 15px; }
     .card .t { font-size: 17px; } .card .i { font-size: 14px; }
     #searchBox { font-size: 22px; }
-    .keys { font-size: 14px; gap: 14px; padding: 10px 16px; }
+    .keys { font-size: 14px; padding: 10px 16px; }
     #osd { font-size: 22px; left: 16px; top: 16px; } #status { font-size: 20px; bottom: 90px; }
     #bar button { font-size: 16px; padding: 10px 12px; }
   }
@@ -183,6 +189,9 @@
       <div class="clock"><div id="time"></div><div id="date"></div></div>
     </header>
     <p id="hint" class="hint"></p>
+    <section id="engine" class="hidden" style="--c: var(--warn)">
+      <h2><span class="icon">⚠️</span>需要更新</h2><div class="row"></div>
+    </section>
     <section id="recent" class="hidden" style="--c: var(--accent)">
       <h2><span class="icon">⭐</span>最近看过</h2><div class="row"></div>
     </section>

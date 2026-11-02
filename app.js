@@ -103,7 +103,17 @@
   function focusEl(el) {
     if (!el) return;
     el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    scrollToMiddle(el);
+  }
+
+  // Centre the element in its scrolling screen, clamped at the top so the header stays in view.
+  // (Old engines ignore scrollIntoView's options and scroll the element to the very top,
+  // which pushed the greeting and clock off the screen.)
+  function scrollToMiddle(el) {
+    const box = el.closest('.scroll');
+    if (!box) return;
+    const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    box.scrollTop = Math.max(0, box.scrollTop + (r.top - b.top) - (box.clientHeight - r.height) / 2);
   }
 
   // Remote-control navigation: jump to the nearest item in the pressed direction.
@@ -208,7 +218,30 @@
     renderCards(sec.querySelector('.cards'), hist);
   }
 
+  // TV boxes can ship a years-old web engine (Android System WebView). CCTV's, TVB's and
+  // YouTube's players need a newer one, so offer the update first thing on the home screen.
+  const OLD_ENGINE = 80;
+  const chromeMajor = () => { const m = /Chrome\/(\d+)/.exec(navigator.userAgent); return m ? +m[1] : 0; };
+
+  function renderEngineNotice() {
+    const v = chromeMajor();
+    if (!window.DadTV || !window.DadTV.openWebViewUpdate || !v || v >= OLD_ENGINE) return;
+    const t = makeTile('更新电视盒的浏览器内核',
+      `现在是 Chrome ${v}，太旧了：央视、TVB、YouTube 可能放不了。按 OK 打开更新`,
+      () => window.DadTV.openWebViewUpdate());
+    t.classList.add('wide');
+    t.style.setProperty('--c', '#ff7b5c');
+    $('engine').querySelector('.row').appendChild(t);
+    $('engine').classList.remove('hidden');
+  }
+
   function showHomeHint() {
+    const update = document.querySelector('#engine .tile');
+    if (update && !$('engine').classList.contains('hidden')) {
+      hint.innerHTML = '电视盒需要更新一下浏览器内核，按 <b>OK</b> 开始';
+      focusEl(update);
+      return;
+    }
     const last = channels.findIndex((c) => c.id === store.get('last', null));
     if (last >= 0) {
       hint.innerHTML = `上次看的是 <b>${esc(channels[last].name)}</b>，按 <b>OK</b> 接着看`;
@@ -875,11 +908,21 @@
 
   buildHome();
   buildVodTiles();
+  renderEngineNotice();
   renderRecent();
   renderContinue();
   tickClock();
   setInterval(tickClock, 10000);
   showHomeHint();
   loadCatalog();
+  // Read by the automated device test (tools/device_test.py): what's on screen and whether the
+  // current channel has actually started playing.
+  window.dadtvDebug = () => ({
+    screen: current(),
+    channel: session ? session.ch.id : null,
+    kind: session ? session.kind : null,
+    played: session ? !!session.played : (vod ? !!vod.played : false),
+    status: statusEl.classList.contains('hidden') ? '' : statusEl.innerText,
+  });
   window.__dadtvStarted = true;  // tells the start-up check in index.html we got this far
 })();

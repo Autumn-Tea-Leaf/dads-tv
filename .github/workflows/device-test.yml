@@ -1,0 +1,59 @@
+# Runs the latest released APK on Android emulators and drives it like a TV remote
+# (tools/device_test.py). Screenshots, results and app logs are uploaded as an artifact.
+#   - API 25 (Android 7.1): an old built-in web engine, like many cheap TV boxes
+#   - API 31 (Android 12): the Android version of recent Unblock boxes
+name: Device test
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  emulator:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 25
+            arch: x86
+          - api: 31
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download the latest APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download latest --pattern dads-tv.apk
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install websocket-client
+
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: ${{ matrix.arch }}
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 tools/device_test.py dads-tv.apk device-test-api${{ matrix.api }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-test-api${{ matrix.api }}
+          path: device-test-api${{ matrix.api }}

@@ -2,6 +2,8 @@ package tv.dad.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -13,7 +15,11 @@ import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -96,7 +102,37 @@ public class MainActivity extends Activity {
         ws.setUserAgentString("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                 + (chrome.find() ? chrome.group() : "Chrome/120.0.0.0") + " Safari/537.36");
 
-        web.setWebChromeClient(new WebChromeClient());
+        // Things a normal browser allows but an in-app WebView doesn't by default, any of which
+        // can stop a site's player from starting: cookies set by the video servers, protected
+        // (DRM) playback, and plain-http media on an https page.
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
+        ws.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        ws.setDatabaseEnabled(true);
+        // Lets the automated device test (tools/device_test.py) inspect pages over adb.
+        WebView.setWebContentsDebuggingEnabled(true);
+
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.i("DadTV", "console " + m.messageLevel() + ": " + m.message()
+                        + " @" + m.sourceId() + ":" + m.lineNumber());
+                return true;
+            }
+
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                // Only the broadcasters' own pages, and only protected-media playback.
+                boolean live = isLiveSite(request.getOrigin().toString());
+                for (String r : request.getResources()) {
+                    if (!live || !PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID.equals(r)) {
+                        request.deny();
+                        return;
+                    }
+                }
+                request.grant(request.getResources());
+            }
+        });
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -219,6 +255,7 @@ public class MainActivity extends Activity {
      * otherwise show what went wrong, so the person helping can see it instead of a blank screen.
      */
     private void pageFailed(String url, String reason) {
+        Log.w("DadTV", "page failed: " + url + " -> " + reason);
         if (showingError) return;
         if (!usingBundled && !BuildConfig.APP_URL.isEmpty() && sameUrl(url, BuildConfig.APP_URL)) {
             usingBundled = true;
@@ -262,8 +299,28 @@ public class MainActivity extends Activity {
 
     /** Called from the page's JavaScript as window.DadTV. */
     private class Bridge {
+        /** Opens the Play Store page to update the box's web engine (Android System WebView). */
+        @JavascriptInterface
+        public void openWebViewUpdate() {
+            runOnUiThread(() -> {
+                String id = "com.google.android.webview";
+                for (String u : new String[] {
+                        "market://details?id=" + id, "https://play.google.com/store/apps/details?id=" + id }) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                        return;
+                    } catch (ActivityNotFoundException e) {
+                        // no Play Store / browser for that link; try the next one
+                    }
+                }
+                Toast.makeText(MainActivity.this,
+                        "找不到应用商店：请在设置 > 应用里更新 Android System WebView", Toast.LENGTH_LONG).show();
+            });
+        }
+
         @JavascriptInterface
         public void openPage(final String url) {
+            Log.i("DadTV", "openPage " + url);
             if (!isLiveSite(url)) return;  // only the broadcasters' own live sites
             runOnUiThread(() -> {
                 cover.removeCallbacks(hideCover);

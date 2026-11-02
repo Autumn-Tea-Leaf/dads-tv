@@ -34,10 +34,28 @@
     }
   }
 
+  // If nothing is playing after 12 s, say why on screen, so a photo of the TV shows the cause.
+  function explain() {
+    var v = document.querySelector('video');
+    if (v && !v.paused && v.currentTime > 0) return;
+    var chrome = (/Chrome\/(\d+)/.exec(navigator.userAgent) || [])[1] || '?';
+    var why = !v ? 'no video element (the site\'s player did not load)'
+      : v.error ? 'video error ' + v.error.code + (v.error.message ? ': ' + v.error.message : '')
+      : 'video ' + (v.paused ? 'paused' : 'stalled') + ', readyState ' + v.readyState + ', networkState ' + v.networkState;
+    var note = document.createElement('div');
+    note.style.cssText = 'position:fixed;left:3%;bottom:6%;z-index:2147483647;visibility:visible!important;' +
+      'background:rgba(0,0,0,.85);color:#fff;border-left:6px solid #ff7b5c;padding:14px 22px;' +
+      'font:22px/1.5 sans-serif;border-radius:10px;max-width:80%';
+    note.textContent = '视频没有开始播放 / Video did not start — ' + why + ' — engine Chrome ' + chrome;
+    document.documentElement.appendChild(note);
+    if (window.console) console.warn('dadtv: ' + note.textContent);
+  }
+
   apply();
   var timer = setInterval(function () {
     ticks++;
     apply();
+    if (ticks === 24) explain();
     if (ticks > 120) clearInterval(timer);
   }, 500);
 })();
