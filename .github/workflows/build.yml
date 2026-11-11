@@ -1,6 +1,9 @@
 # Publishes the TV page to GitHub Pages and builds the Android TV app (APK).
 # Every Monday it also refreshes the drama/movie catalog, so new shows appear on Dad's TV
 # without reinstalling anything (the app loads the published page).
+# The APK is signed with the permanent key kept in the repository's secrets
+# (SIGNING_KEYSTORE_B64, SIGNING_PASSWORD), and version.json is published next to the page;
+# together they let the installed app update itself (android/.../Updater.java).
 name: Build
 
 on:
@@ -39,16 +42,6 @@ jobs:
           git add catalog.json episodes.json
           git commit -m 'Refresh catalog' && git push || echo 'catalog unchanged'
 
-      # The ?v= stamp makes the TV fetch fresh scripts after every update instead of cached ones.
-      - name: Stage site
-        run: |
-          mkdir site && cp -r index.html app.js channels.js catalog.json episodes.json vendor site/
-          sed -i -E "s/(app|channels)\.js\"/\1.js?v=${GITHUB_SHA::7}\"/g" site/index.html
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -58,23 +51,74 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/dadtv.p12"
+            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/dadtv.p12" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No SIGNING_KEYSTORE_B64 secret: this build is signed with a throwaway key, so installed apps cannot update to it."
+          fi
+
       - name: Build APK
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         # Lower case: Android reports the address that way, and the app compares against it.
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          gradle -p android assembleDebug -PappUrl=https://$OWNER.github.io/${{ github.event.repository.name }}/
+          URL=https://$OWNER.github.io/${{ github.event.repository.name }}/
+          D=android/app/build/outputs/apk/debug
+          # First an "older" app (version 1), which the device test installs and lets update itself.
+          gradle -p android assembleDebug -PappUrl=$URL -PtestVersionCode=1
+          cp $D/app-x86-debug.apk         dads-tv-x86-old.apk
+          cp $D/app-x86_64-debug.apk      dads-tv-x86_64-old.apk
+          gradle -p android assembleDebug -PappUrl=$URL
+          cp $D/app-armeabi-v7a-debug.apk dads-tv.apk        # TV boxes (32- and 64-bit ARM)
+          cp $D/app-arm64-v8a-debug.apk   dads-tv-arm64.apk
+          cp $D/app-x86-debug.apk         dads-tv-x86.apk    # emulator tests
+          cp $D/app-x86_64-debug.apk      dads-tv-x86_64.apk
+          echo "SITE_URL=$URL" >> "$GITHUB_ENV"
+
+      # The fingerprint is of the permanent key's certificate (public; the key itself is secret).
+      - name: Check the signature and write version.json
+        env:
+          KEY_FINGERPRINT: 0188eece5b93e8c6684fd3dbc01c70415eee27907b49e5aeec3a2654859faded
+        run: |
+          TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          for apk in dads-tv.apk dads-tv-arm64.apk dads-tv-x86.apk dads-tv-x86_64.apk dads-tv-x86-old.apk dads-tv-x86_64-old.apk; do
+            SIGNED_BY=$($TOOLS/apksigner verify --print-certs $apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+            VERSION=$($TOOLS/aapt2 dump badging $apk | grep -oP "versionCode='\K[0-9]+")
+            echo "$apk: version $VERSION, signed by $SIGNED_BY"
+            if [ -n "$SIGNING_KEYSTORE" ] && [ "$SIGNED_BY" != "$KEY_FINGERPRINT" ]; then
+              echo "::error::$apk is not signed with the permanent key"; exit 1
+            fi
+          done
+          VERSION=$($TOOLS/aapt2 dump badging dads-tv.apk | grep -oP "versionCode='\K[0-9]+")
+          mkdir site
+          python tools/write_version.py site/version.json "$VERSION" \
+            "https://github.com/${{ github.repository }}/releases/download/latest/" \
+            "$(git rev-parse HEAD:android)" "${SITE_URL}version.json"
+
+      # The ?v= stamp makes the TV fetch fresh scripts after every update instead of cached ones.
+      - name: Stage site
+        run: |
+          cp -r index.html app.js channels.js catalog.json episodes.json vendor site/
+          sed -i -E "s/(app|channels)\.js\"/\1.js?v=${GITHUB_SHA::7}\"/g" site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
       - name: Publish APK as the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          D=android/app/build/outputs/apk/debug
-          cp $D/app-armeabi-v7a-debug.apk dads-tv.apk        # TV boxes (32- and 64-bit ARM)
-          cp $D/app-arm64-v8a-debug.apk   dads-tv-arm64.apk
-          cp $D/app-x86-debug.apk         dads-tv-x86.apk    # emulator tests
-          cp $D/app-x86_64-debug.apk      dads-tv-x86_64.apk
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dads-tv.apk dads-tv-arm64.apk dads-tv-x86.apk dads-tv-x86_64.apk             --title '区tv' --notes 'Install dads-tv.apk on the TV box (works on 32- and 64-bit ARM boxes).'
+          gh release create latest dads-tv.apk dads-tv-arm64.apk dads-tv-x86.apk dads-tv-x86_64.apk \
+            dads-tv-x86-old.apk dads-tv-x86_64-old.apk \
+            --title '区tv' --notes 'Install dads-tv.apk on the TV box (works on 32- and 64-bit ARM boxes). After that the app updates itself. The x86 and "-old" files are for the automatic tests.'
 
   pages:
     needs: build

@@ -7,6 +7,8 @@ The app is started with a "#test" link, which makes the page log its state every
 ("DADTV_STATE {...}") and lets the test pre-select a tile ("&focus=cgtn"); the full-screen
 extension logs CCTV/TVB video status ("DADTV_VIDEO {...}"). The test presses real keys over
 adb (D-pad, OK, Back), reads those log lines, and saves screenshots.
+Last, if an "older" build of the app sits next to the APK (dads-tv-x86-old.apk), it installs
+that one and checks that it updates itself to the published version ("DADTV_UPDATE {...}").
 Results go to out/results.json and out/summary.txt; app logs to out/logcat.txt.
 """
 import json, os, re, subprocess, sys, time
@@ -179,6 +181,88 @@ def main():
     shot('99-end')
 
 
+def installed_version():
+    found = re.search(r'versionCode=(\d+)', adb('shell', 'dumpsys', 'package', PKG))
+    return int(found.group(1)) if found else None
+
+
+def tap_button(words):
+    """Tap the button of the screen now showing whose label is one of the words (any case)."""
+    adb('shell', 'uiautomator', 'dump', '/sdcard/ui.xml')
+    xml = adb('shell', 'cat', '/sdcard/ui.xml')
+    labels = []
+    for text, x1, y1, x2, y2 in re.findall(r'<node[^>]*? text="([^"]*)"[^>]*? bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml):
+        if text:
+            labels.append(text)
+        if text.strip().lower() in words:
+            adb('shell', 'input', 'tap', str((int(x1) + int(x2)) // 2), str((int(y1) + int(y2)) // 2))
+            return text
+    print('on screen: ' + ' | '.join(labels)[:600], flush=True)
+    return None
+
+
+def update_test(old_apk):
+    """Install the older build, let it find and download the published one, and install that
+    through Android's own installer the way the viewer would (OK on our message, then Install)."""
+    api = int(adb('shell', 'getprop', 'ro.build.version.sdk').strip() or 0)
+    print(adb('uninstall', PKG), flush=True)
+    print(adb('install', '-g', old_apk, timeout=300), flush=True)
+    old = installed_version()
+    # What a box that has had an APK installed by hand already allows; and no Play Protect pop-ups.
+    adb('shell', 'settings', 'put', 'secure', 'install_non_market_apps', '1')
+    adb('shell', 'settings', 'put', 'global', 'package_verifier_enable', '0')
+    adb('shell', 'settings', 'put', 'global', 'verifier_verify_adb_installs', '0')
+    if api >= 26:
+        adb('shell', 'appops', 'set', PKG, 'REQUEST_INSTALL_PACKAGES', 'allow')
+
+    fresh_log()
+    adb('shell', 'am', 'start', '-n', PKG + '/.MainActivity')
+    done = ('prompt', 'rejected', 'unusable')
+    state = wait_state(lambda s: s.get('state') in done, 600, 'DADTV_UPDATE')
+    shot('update-1-message')
+    record('older app downloads the new version and offers it',
+           state and state.get('state') == 'prompt' and state.get('to', 0) > (old or 0), state=state, old=old)
+    if not state or state.get('state') != 'prompt':
+        return
+
+    fresh_log()
+    key(23, 5)  # OK on our message: Android's installer opens
+    shot('update-2-installer')
+    opened = latest('DADTV_UPDATE')
+    record('OK opens Android\'s installer', opened and opened.get('state') == 'installer opened', state=opened)
+    tapped, new, end = [], old, time.time() + 240
+    while time.time() < end and new == old:
+        label = tap_button(('install', 'update', 'continue', 'ok'))
+        if label:
+            tapped.append(label)
+        time.sleep(6)
+        new = installed_version()
+    shot('update-3-installed')
+    record('Android installs it over the older app', new is not None and old is not None and new > old,
+           old=old, new=new, tapped=tapped)
+    if new == old:
+        return
+
+    # The updated app must start, see that it is current, and remove the downloaded file.
+    time.sleep(3)
+    start('test')
+    state = wait_state(lambda s: s.get('started'), 90)
+    record('updated app starts', state and state.get('started') and not state.get('errorBox'), state=state)
+    seen = set()
+    end = time.time() + 90
+    while time.time() < end and not {'cleaned', 'current'} <= seen:
+        for line in adb('logcat', '-d').splitlines():
+            found = re.search(r'DADTV_UPDATE (\{.*\})', line)
+            if found:
+                try:
+                    seen.add(json.loads(found.group(1)).get('state'))
+                except ValueError:
+                    pass
+        time.sleep(3)
+    shot('update-4-after')
+    record('updated app is current and removed the download', {'cleaned', 'current'} <= seen, seen=sorted(seen))
+
+
 def mostly_white(path):
     from PIL import Image  # pip install pillow
     im = Image.open(path).convert('L').resize((64, 36))
@@ -209,6 +293,9 @@ try:
         long_play('cctv4', 'CCTV-4', 2)
     else:
         main()
+        OLD_APK = APK[:-4] + '-old.apk'
+        if os.path.exists(OLD_APK):
+            update_test(OLD_APK)
 finally:
     full_log.append(adb('logcat', '-d', '-v', 'time'))
     with open(os.path.join(OUT, 'logcat.txt'), 'w', encoding='utf-8') as f:

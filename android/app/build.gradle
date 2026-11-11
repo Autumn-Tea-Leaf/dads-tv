@@ -7,6 +7,18 @@ plugins {
 //   A URL, e.g. -PappUrl=https://you.github.io/dads-tv/ : the hosted copy, which updates itself.
 def appUrl = project.findProperty('appUrl') ?: ''
 
+// The app's version. Boxes update themselves when this number goes up (see Updater.java), so
+// raise it by one whenever a change to the app itself (anything under android/) should reach
+// them. Changes to the page, channels or catalog reach them without it.
+def appVersionCode = 3
+// For the device test: -PtestVersionCode=1 builds an "older" app, to test updating from it.
+def buildVersionCode = (project.findProperty('testVersionCode') ?: appVersionCode) as int
+
+// The permanent signing key (a PKCS12 file; the Build workflow takes it from the repository's
+// secrets). Android only lets an app be updated by an APK signed with the same key. Without
+// it the build is signed with the machine's throwaway debug key.
+def signingStore = System.getenv('SIGNING_KEYSTORE')
+
 android {
     namespace 'tv.dad.app'
     compileSdk 35
@@ -15,13 +27,31 @@ android {
         applicationId 'tv.dad.app'
         minSdk 21
         targetSdk 34
-        versionCode 2
-        versionName '2.0'
+        versionCode buildVersionCode
+        versionName "${appVersionCode}"
         buildConfigField 'String', 'APP_URL', "\"${appUrl}\""
     }
 
     buildFeatures {
         buildConfig true
+    }
+
+    signingConfigs {
+        permanent {
+            if (signingStore) {
+                storeFile file(signingStore)
+                storeType 'pkcs12'
+                storePassword System.getenv('SIGNING_PASSWORD')
+                keyAlias 'dadtv'
+                keyPassword System.getenv('SIGNING_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (signingStore) signingConfig signingConfigs.permanent
+        }
     }
 
     // Android's default leaves folders starting with "_" out of the APK; the ad blocker
