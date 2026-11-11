@@ -117,14 +117,18 @@ def main():
         record('header visible', state.get('headerVisible'))
         record('remote has focus on a tile', bool(state.get('focused')), focused=state.get('focused'))
 
-    # The built-in ad blocker (uBlock Origin) reads its filter lists on first start: allow it time.
-    def blocking(s):
-        ab = s.get('adblock') or {}
-        return ab.get('normalLoaded') and not ab.get('adLoaded')
-    ab = (wait_state(blocking, 150) or {}).get('adblock')
-    record('ad blocker stops advert addresses, not normal ones',
-           ab and ab.get('normalLoaded') and not ab.get('adLoaded'), adblock=ab,
-           blocker=latest('DADTV_UBO'))
+    # The built-in ad blocker (uBlock Origin) reads its filter lists on first start, then reports
+    # its state ("DADTV_UBO"). The test page keeps requesting an advert address: the blocker
+    # must have seen those requests and stopped them, and must hold YouTube's ad rules.
+    def blocking(b):
+        seen = b.get('seen') or {}
+        return (b.get('startup') == 'done' and b.get('ruleSaysBlock') == 1
+                and (b.get('requests') or {}).get('blockedCount', 0) > 0
+                and seen.get('before', 0) - seen.get('completed', 0) >= 2)
+    blocker = wait_state(blocking, 110, 'DADTV_UBO')
+    record('ad blocker started and stops advert requests', blocker and blocking(blocker), blocker=blocker)
+    scripts = (blocker or {}).get('youtubeScripts')
+    record('ad blocker holds YouTube ad rules', isinstance(scripts, int) and scripts > 1000, size=scripts)
 
     before = (latest('DADTV_STATE') or {}).get('focused')
     fresh_log()

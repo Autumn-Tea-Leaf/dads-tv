@@ -70,8 +70,13 @@ The Unblock Tech box runs Android, so it installs like any Android app.
 
 ## Known limits
 
-- **Ads:** dramas and movies come from official YouTube channels, so YouTube may show ads now and
-  then. Removing them would mean breaking YouTube's terms. YouTube Premium removes them.
+- **Ads:** the TV app has [uBlock Origin](https://github.com/gorhill/uBlock) built in (fetched
+  at build time, see `android/app/build.gradle`), limited to the lists YouTube needs, so YouTube's
+  adverts are skipped on the YouTube channels and dramas. Using an ad blocker is against YouTube's
+  terms of service, and it can stop working when YouTube changes its player; raising the uBlock
+  Origin version in `build.gradle` is the fix. CCTV's and TVB's own pages are left untouched, and
+  commercial breaks that are part of a TV channel can't be removed. The page opened in an ordinary
+  browser still shows YouTube's adverts.
 - **TVB Jade/Pearl live** have no free official stream outside Hong Kong, so they aren't included.
   TVB's full dramas are in the 点播 section.
 - **CCTV pages** are CCTV's own site. If CCTV redesigns it, the full-screen tweak in

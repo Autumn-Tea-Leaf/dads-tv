@@ -112,6 +112,24 @@ tasks.register('copyAdBlocker', Sync) {
         }
     }
     doLast {
+        // Start with only the filter lists that matter for YouTube's adverts (uBlock Origin's
+        // own, plus EasyList). The full default set, plus the regional and mobile lists it
+        // adds by itself, needs more memory than an old TV box has to spare.
+        def keep = ['ublock-filters', 'ublock-quick-fixes', 'ublock-unbreak', 'easylist']
+        def registryFile = uboDir.file('assets/assets.json').asFile
+        def registry = new groovy.json.JsonSlurper().parse(registryFile, 'UTF-8')
+        if (!keep.every { registry[it]?.content == 'filters' }) {
+            throw new GradleException('uBlock Origin layout changed: expected filter lists are missing')
+        }
+        registry.each { key, entry ->
+            if (entry.content == 'filters' && !(key in keep)) {
+                entry.off = true
+                entry.remove('lang')
+                entry.remove('ua')
+            }
+        }
+        registryFile.setText(groovy.json.JsonOutput.toJson(registry), 'UTF-8')
+
         def patched = uboDir.file('js/background.js').asFile.getText('UTF-8')
         def page = uboDir.file('background.html').asFile.getText('UTF-8')
         if (!patched.contains("'cctv.com',") || !page.contains('dadtv-status.js')

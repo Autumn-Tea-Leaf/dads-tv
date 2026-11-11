@@ -1,6 +1,7 @@
 // Added to the bundled uBlock Origin by app/build.gradle (it is not part of uBlock Origin).
-// Writes the blocker's state to the app log every 10 s ("DADTV_UBO {...}"), so the device test
-// (tools/device_test.py) can tell whether it started and is filtering.
+// Writes the blocker's state to the app log ("DADTV_UBO {...}") every 10 s for the first five
+// minutes after the app starts, so the device test (tools/device_test.py) can tell whether it
+// started and is filtering.
 import ub from './background.js';
 import netFilters from './static-net-filtering.js';
 import scriptlets from './scriptlet-filtering.js';
@@ -38,11 +39,7 @@ const report = async () => {
   try {
     tabs = (await browser.tabs.query({})).map((t) => {
       const store = attempt(() => ub.pageStoreFromTabId(t.id));
-      return {
-        id: t.id, url: (t.url || '').slice(0, 50),
-        store: store && typeof store === 'object',
-        filtering: store && typeof store === 'object' ? attempt(() => store.getNetFilteringSwitch()) : null,
-      };
+      return { id: t.id, url: (t.url || '').slice(0, 50), known: !!store && typeof store === 'object' };
     });
   } catch (e) {
     tabs = 'error: ' + e;
@@ -65,4 +62,5 @@ const report = async () => {
   }));
 };
 setTimeout(report, 3000);
-setInterval(report, 10000);
+const timer = setInterval(report, 10000);
+setTimeout(() => clearInterval(timer), 305000);
