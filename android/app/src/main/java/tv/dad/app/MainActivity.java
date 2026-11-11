@@ -75,6 +75,12 @@ public class MainActivity extends Activity {
                 .ensureBuiltIn("resource://android/assets/extension/", "fullscreen@dad.tv")
                 .accept(ext -> Log.i(TAG, "full-screen extension ready"),
                         e -> Log.e(TAG, "full-screen extension failed", e));
+        // uBlock Origin (see app/build.gradle): removes YouTube's adverts from the YouTube
+        // channels and dramas. If it fails to load, everything still plays, with adverts.
+        runtime.getWebExtensionController()
+                .ensureBuiltIn("resource://android/assets/ublock/", "uBlock0@raymondhill.net")
+                .accept(ext -> Log.i(TAG, "ad blocker ready"),
+                        e -> Log.e(TAG, "ad blocker failed", e));
 
         session = new GeckoSession(new GeckoSessionSettings.Builder()
                 .userAgentOverride(USER_AGENT)

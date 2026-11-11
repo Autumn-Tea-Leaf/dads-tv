@@ -943,6 +943,17 @@
       if (ch) focusEl(tileFor(channels.findIndex((c) => c.id === ch)));
       if (vodIdx) focusEl(document.querySelectorAll('#vodGroup .tile')[+vodIdx]);
     }, 2500);
+    // Is the app's built-in ad blocker working? An advert address must fail to load while an
+    // ordinary one (YouTube's player script) loads.
+    let adblock = null;
+    const probe = () => {
+      const loads = (url) => fetch(url, { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
+      Promise.all([loads('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'),
+                   loads('https://www.youtube.com/iframe_api')])
+        .then((r) => { adblock = { adLoaded: r[0], normalLoaded: r[1] }; });
+    };
+    probe();
+    setInterval(probe, 5000);
     setInterval(() => {
       const tiles = document.querySelectorAll('#groups .tile');
       const s = Object.assign(window.dadtvDebug(), {
@@ -953,6 +964,7 @@
         headerVisible: $('greet').getBoundingClientRect().top >= 0,
         focused: document.activeElement ? (document.activeElement.innerText || '').split('\n')[0] : null,
         vodTiles: document.querySelectorAll('#vodGroup .tile').length,
+        adblock: adblock,
       });
       console.log('DADTV_STATE ' + JSON.stringify(s));
     }, 2000);

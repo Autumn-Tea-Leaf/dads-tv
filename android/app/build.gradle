@@ -24,6 +24,12 @@ android {
         buildConfig true
     }
 
+    // Android's default leaves folders starting with "_" out of the APK; the ad blocker
+    // needs its "_locales" folder, so this is the default list without that rule.
+    androidResources {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -56,4 +62,51 @@ tasks.register('copyWebApp', Copy) {
     }
     into layout.projectDirectory.dir('src/main/assets/www')
 }
-preBuild.dependsOn copyWebApp
+
+// uBlock Origin (open-source ad blocker, GPLv3, https://github.com/gorhill/uBlock), loaded by
+// MainActivity as a built-in extension so the YouTube channels and dramas play without
+// YouTube's adverts. Downloaded at build time (a fixed version, checked against its SHA-256)
+// rather than kept in this repository.
+def uboVersion = '1.76.0'
+def uboSha256 = '6f20ff6749193599548770539103069c20948dfcd3e61c3089a67da7bfc3be39'
+def uboXpi = layout.buildDirectory.file("adblock/uBlock0_${uboVersion}.xpi")
+def uboDir = layout.projectDirectory.dir('src/main/assets/ublock')
+
+tasks.register('fetchAdBlocker') {
+    inputs.property('version', uboVersion)
+    outputs.file(uboXpi)
+    doLast {
+        def f = uboXpi.get().asFile
+        f.parentFile.mkdirs()
+        ant.get(src: "https://github.com/gorhill/uBlock/releases/download/${uboVersion}/uBlock0_${uboVersion}.firefox.signed.xpi",
+                dest: f)
+        def sha = java.security.MessageDigest.getInstance('SHA-256').digest(f.bytes).encodeHex().toString()
+        if (sha != uboSha256) {
+            f.delete()
+            throw new GradleException("uBlock Origin download has SHA-256 ${sha}, expected ${uboSha256}")
+        }
+    }
+}
+
+tasks.register('copyAdBlocker', Sync) {
+    dependsOn 'fetchAdBlocker'
+    from(zipTree(uboXpi)) {
+        exclude 'META-INF/**'
+    }
+    into uboDir
+    // Leave the broadcasters' own pages (CCTV, TVB News) completely alone: they are added to
+    // the blocker's default "trusted sites", so it only acts on the app's page and YouTube.
+    filteringCharset = 'UTF-8'
+    filesMatching('js/background.js') {
+        filter { String line ->
+            line.contains("'moz-extension-scheme',") ? line + " 'cctv.com', 'tvb.com'," : line
+        }
+    }
+    doLast {
+        def patched = uboDir.file('js/background.js').asFile.getText('UTF-8')
+        if (!patched.contains("'cctv.com',") || !uboDir.dir('_locales').asFile.isDirectory()) {
+            throw new GradleException('uBlock Origin layout changed: trusted-sites patch not applied')
+        }
+    }
+}
+preBuild.dependsOn copyWebApp, copyAdBlocker

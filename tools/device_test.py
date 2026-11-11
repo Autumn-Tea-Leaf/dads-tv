@@ -117,6 +117,14 @@ def main():
         record('header visible', state.get('headerVisible'))
         record('remote has focus on a tile', bool(state.get('focused')), focused=state.get('focused'))
 
+    # The built-in ad blocker (uBlock Origin) reads its filter lists on first start: allow it time.
+    def blocking(s):
+        ab = s.get('adblock') or {}
+        return ab.get('normalLoaded') and not ab.get('adLoaded')
+    ab = (wait_state(blocking, 150) or {}).get('adblock')
+    record('ad blocker stops advert addresses, not normal ones',
+           ab and ab.get('normalLoaded') and not ab.get('adLoaded'), adblock=ab)
+
     before = (latest('DADTV_STATE') or {}).get('focused')
     fresh_log()
     key(20)  # DPAD_DOWN
