@@ -58,7 +58,7 @@ dependencies {
 // Copy the web app (one folder up from android/) into the APK's assets.
 tasks.register('copyWebApp', Copy) {
     from(rootProject.file('..')) {
-        include 'index.html', 'app.js', 'channels.js', 'catalog.json', 'vendor/**'
+        include 'index.html', 'app.js', 'channels.js', 'catalog.json', 'episodes.json', 'vendor/**'
     }
     into layout.projectDirectory.dir('src/main/assets/www')
 }

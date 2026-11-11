@@ -11,8 +11,11 @@ and no pirate sites, so nothing gets shut down or blocked.
 - **News / dramas / provincial channels**: Phoenix, CGTN, CCTV 24-hour drama marathons (三国, 水浒,
   西游记, 康熙王朝, 雍正王朝), a 24-hour movie channel, Hunan, Hebei, Zhejiang, Guangzhou and more.
 - **台湾新闻**: TVBS, 东森, 中天, 民视, 公视, 中视, 寰宇.
-- **点播 · 电视剧 电影**: about 1,700 complete series and films. Browse by channel or search;
-  simplified or traditional characters both work. It remembers which episode he's on (继续观看).
+- **点播 · 电视剧 电影**: about 1,100 complete series and films, with plain names (the channels'
+  own titles are full of promotion), no trailers or highlight clips, and no repeats. Browse by
+  channel or search; simplified or traditional characters both work. A series opens on its
+  episode screen: episodes in order, the ones watched marked, and the one to continue with
+  selected (继续观看 on the home screen goes straight back to it).
 
 ## Remote control
 
@@ -61,7 +64,7 @@ The Unblock Tech box runs Android, so it installs like any Android app.
 ## Maintenance
 
 - `python tools/check_streams.py`: check which direct streams still work.
-- `python tools/build_catalog.py`: rebuild the drama/movie list now (the workflow does it weekly).
+- `python tools/build_catalog.py`: rebuild the drama/movie list and episode lists now (the workflow does it weekly).
 - `channels.js`: add, remove or reorder channels. Each channel can have several lines; add more
   to make auto-switching more useful.
 - To try it on a PC: `python -m http.server 8765` in this folder, then open http://localhost:8765.

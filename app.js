@@ -21,7 +21,7 @@
   let catalog = null;
 
   const $ = (id) => document.getElementById(id);
-  const screens = { home: $('home'), browse: $('browse'), player: $('player') };
+  const screens = { home: $('home'), browse: $('browse'), series: $('series'), player: $('player') };
   const video = $('video'), ytBox = $('yt'), webBox = $('web');
   const osd = $('osd'), statusEl = $('status'), bar = $('bar'), hint = $('hint');
   const searchBox = $('searchBox');
@@ -86,6 +86,11 @@
       showHomeHint();  // puts the focus on the top "最近看过" tile
       return;
     }
+    if (current() === 'series') {  // back from an episode: show where he is now
+      renderSeries();
+      focusEl($('eps').querySelector('.ep.now') || $('eps').querySelector('.ep'));
+      return;
+    }
     restoreFocus(current());
   }
 
@@ -100,7 +105,7 @@
     else focusEl(focusables(scr)[0]);
   }
 
-  const focusables = (scr) => [...screens[scr].querySelectorAll('.tile, .card, input')].filter((el) => !el.closest('.hidden'));
+  const focusables = (scr) => [...screens[scr].querySelectorAll('.tile, .card, .ep, input')].filter((el) => !el.closest('.hidden'));
 
   function focusEl(el) {
     if (!el) return;
@@ -217,7 +222,10 @@
     const sec = $('continue');
     const hist = store.get('history', []);
     sec.classList.toggle('hidden', !hist.length);
-    renderCards(sec.querySelector('.cards'), hist);
+    // Show the catalog's (tidied) name for shows watched before the names were cleaned up.
+    const known = {};
+    if (catalog) for (const p of catalog.providers) for (const it of p.items) known[it.id] = it;
+    renderCards(sec.querySelector('.cards'), hist.map((h) => known[h.id] || h), true);
   }
 
   // TV boxes can ship a years-old web engine (Android System WebView). CCTV's, TVB's and
@@ -282,17 +290,87 @@
         for (const p of c.providers) for (const it of p.items) it.provider = p.name;
       })
       .catch(() => { catalog = null; })
-      .then(buildVodTiles);
+      .then(() => { buildVodTiles(); if (current() === 'home') renderContinue(); });
   }
 
-  function renderCards(container, items) {
+  // Each series' episodes in order, [[videoId, "5"], ...], from tools/build_catalog.py.
+  // Loaded the first time a series is opened.
+  let episodes = null, episodesLoading = null;
+
+  function loadEpisodes() {
+    if (episodes) return Promise.resolve(episodes);
+    if (!episodesLoading) {
+      episodesLoading = fetch('episodes.json')
+        .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then((e) => { episodes = e; return e; })
+        .catch(() => { episodesLoading = null; return {}; });
+    }
+    return episodesLoading;
+  }
+
+  const epLabel = (eps, i) => `第 ${eps[i][1] || i + 1} 集`;
+
+  // Where he stopped: the same video if it is still in the list, else the same position.
+  function resumeIndex(h, eps) {
+    if (!h) return 0;
+    if (h.vid) {
+      const i = eps.findIndex((e) => e[0] === h.vid);
+      if (i >= 0) return i;
+    }
+    return Math.max(0, Math.min(h.index || 0, eps.length - 1));
+  }
+
+  // A film plays at once. A series opens its episode screen, unless he is resuming it from
+  // "继续观看" on the home screen, which goes straight back to the episode he was on.
+  function openItem(it, resume) {
+    if (it.type !== 'playlist') { playVod(it); return; }
+    loadEpisodes().then((all) => {
+      const eps = all[it.id];
+      if (!eps || !eps.length) { playVod(it); return; }  // no list: YouTube runs its own playlist
+      const h = store.get('history', []).find((x) => x.id === it.id);
+      if (resume || eps.length === 1) playVod(it, eps, resumeIndex(h, eps));
+      else openSeries(it, eps);
+    });
+  }
+
+  let series = null;
+
+  function openSeries(it, eps) {
+    series = { it, eps };
+    renderSeries();
+    pushScreen('series');
+    screens.series.scrollTop = 0;
+    focusEl($('eps').querySelector('.ep.now') || $('eps').querySelector('.ep'));
+  }
+
+  function renderSeries() {
+    if (!series) return;
+    const it = series.it, eps = series.eps;
+    const h = store.get('history', []).find((x) => x.id === it.id);
+    const at = h ? resumeIndex(h, eps) : -1;
+    $('seriesTitle').textContent = it.title;
+    $('seriesMsg').innerHTML = at >= 0
+      ? `共 ${eps.length} 集 · 上次看到 <b>${epLabel(eps, at)}</b>${h.t > 30 ? '（' + clock(h.t) + '）' : ''}，按 <b>OK</b> 接着看`
+      : `共 ${eps.length} 集 · 选一集，按 <b>OK</b> 播放`;
+    const box = $('eps');
+    box.innerHTML = '';
+    eps.forEach((ep, i) => {
+      const b = document.createElement('button');
+      b.className = 'ep' + (i === at ? ' now' : (i < at ? ' seen' : ''));
+      b.innerHTML = `${esc(ep[1] || i + 1)}<small>${i === at ? '接着看' : (i < at ? '看过' : '')}</small>`;
+      b.addEventListener('click', () => playVod(it, eps, i));
+      box.appendChild(b);
+    });
+  }
+
+  function renderCards(container, items, resume) {
     container.innerHTML = '';
     const hist = new Map(store.get('history', []).map((h) => [h.id, h]));
     for (const it of items) {
       const h = hist.get(it.id);
       let progress = '', done = 0;
       if (h && h.type === 'playlist') {
-        progress = `<em>看到第 ${h.index + 1} 集</em> · `;
+        progress = `<em>看到${h.ep || '第 ' + (h.index + 1) + ' 集'}</em> · `;
         if (h.n > 1) done = (h.index + (h.d ? h.t / h.d : 0)) / h.n;
       } else if (h && h.t > 30) {
         progress = `<em>看到 ${clock(h.t)}</em> · `;
@@ -304,7 +382,7 @@
         ${done > 0 ? `<div class="bar"><i style="width:${Math.min(100, done * 100).toFixed(1)}%"></i></div>` : ''}
         <div class="t">${esc(it.title)}</div>
         <div class="i">${progress}${esc(it.info || '')}${it.provider ? ' · ' + esc(it.provider) : ''}</div>`;
-      b.addEventListener('click', () => playVod(it));
+      b.addEventListener('click', () => openItem(it, resume));
       container.appendChild(b);
     }
   }
@@ -716,19 +794,27 @@
 
   let vod = null;
 
-  function playVod(item) {
+  // eps/index: a series with a known episode list (see loadEpisodes) plays one video at a time
+  // and moves to the next itself, so the episode shown is always the real one. Without a list
+  // (older data, or a list that could not be read) YouTube runs the playlist as before.
+  function playVod(item, eps, index) {
     pushScreen('player');
     setBar('vod');
     stopPlayback();
     const h = store.get('history', []).find((x) => x.id === item.id);
-    const state = vod = { item, errors: 0, startedAt: Date.now(), resumed: false, resume: h };
-    flashOsd(item.title, item.provider || '');
+    const state = vod = { item, eps: eps || null, index: index || 0, errors: 0, startedAt: Date.now(),
+      resumed: !!eps, resume: h };
+    flashOsd(item.title, eps ? `${epLabel(eps, state.index)} / 共 ${eps.length} 集` : (item.provider || ''));
     setStatus('正在加载…', { loading: true });
     loadYtApi().then(() => {
       if (vod !== state) return;
       const playerVars = Object.assign({}, YT_VARS);
       const opts = { playerVars };
-      if (item.type === 'playlist') {
+      if (eps) {
+        opts.videoId = eps[state.index][0];
+        const same = h && (h.vid ? h.vid === opts.videoId : h.index === state.index);
+        if (same && h.t > 30 && !(h.d && h.t > h.d - 60)) playerVars.start = Math.floor(h.t - 5);
+      } else if (item.type === 'playlist') {
         playerVars.listType = 'playlist';
         playerVars.list = item.id;
         if (h) playerVars.index = h.index || 0;
@@ -763,14 +849,35 @@
     } else if (st === YT.PlayerState.BUFFERING) {
       setStatus('缓冲中…', { spin: true });
     } else if (st === YT.PlayerState.ENDED) {
+      if (state.eps) {
+        if (state.index < state.eps.length - 1) playEpisode(state, state.index + 1);
+        else setStatus('全部播完了，按返回选别的节目', { ms: 8000 });
+        return;
+      }
       const list = p.getPlaylist && p.getPlaylist();
       if (!list || p.getPlaylistIndex() >= list.length - 1) setStatus('全部播完了，按返回选别的节目', { ms: 8000 });
     }
   }
 
+  function playEpisode(state, i) {
+    state.index = i;
+    state.yt.loadVideoById(state.eps[i][0]);
+    flashOsd(state.item.title, `${epLabel(state.eps, i)} / 共 ${state.eps.length} 集`);
+    setStatus(`${epLabel(state.eps, i)} 正在加载…`, { spin: true, ms: 8000 });
+  }
+
   function onVodError(state, code) {
     state.errors += 1;
     console.log('DADTV_YT_ERROR ' + code);
+    if (state.eps) {
+      if (state.index < state.eps.length - 1 && state.errors < 4) {
+        setStatus(`${epLabel(state.eps, state.index)}不能在这里播放，跳到下一集…`);
+        setTimeout(() => { if (vod === state) playEpisode(state, state.index + 1); }, 1500);
+      } else {
+        setStatus(`这个节目不能在这里播放，请按返回选别的（YouTube 错误 ${code}）`, { warn: true });
+      }
+      return;
+    }
     const list = state.yt.getPlaylist && state.yt.getPlaylist();
     if (list && list.length > 1 && state.errors < 4) {
       setStatus('这一集不能在这里播放，跳到下一集…');
@@ -790,13 +897,18 @@
     const p = state.yt;
     if (!p || !p.getCurrentTime || !state.played) return;
     const it = state.item;
-    remember({
-      id: it.id, type: it.type, title: it.title, thumb: it.thumb, info: it.info, provider: it.provider,
-      index: it.type === 'playlist' ? Math.max(0, p.getPlaylistIndex()) : 0,
-      n: (p.getPlaylist && p.getPlaylist() || []).length,  // episodes, for the progress bar
-      t: p.getCurrentTime(),
-      d: p.getDuration(),
-    });
+    const entry = { id: it.id, type: it.type, title: it.title, thumb: it.thumb, info: it.info, provider: it.provider,
+      t: p.getCurrentTime(), d: p.getDuration() };
+    if (state.eps) {
+      entry.index = state.index;
+      entry.n = state.eps.length;
+      entry.vid = state.eps[state.index][0];        // the episode itself, should the list change
+      entry.ep = epLabel(state.eps, state.index);
+    } else {
+      entry.index = it.type === 'playlist' ? Math.max(0, p.getPlaylistIndex()) : 0;
+      entry.n = (p.getPlaylist && p.getPlaylist() || []).length;  // episodes, for the progress bar
+    }
+    remember(entry);
   }
 
   function stopVod() {
@@ -811,7 +923,8 @@
     if (!vod || !vod.yt || !vod.yt.getCurrentTime) return;
     const p = vod.yt;
     const list = p.getPlaylist && p.getPlaylist();
-    const ep = list && list.length > 1 ? `第 ${p.getPlaylistIndex() + 1} / ${list.length} 集 · ` : '';
+    let ep = list && list.length > 1 ? `第 ${p.getPlaylistIndex() + 1} / ${list.length} 集 · ` : '';
+    if (vod.eps && vod.eps.length > 1) ep = `${epLabel(vod.eps, vod.index)} / 共 ${vod.eps.length} 集 · `;
     flashOsd(vod.item.title, `${ep}${clock(p.getCurrentTime())} / ${clock(p.getDuration())}`);
   }
 
@@ -824,6 +937,14 @@
 
   function vodEpisode(step) {
     const p = vod && vod.yt;
+    if (p && p.loadVideoById && vod.eps) {
+      const i = vod.index + step;
+      if (vod.eps.length < 2) setStatus('这个节目只有一集', { ms: 2500 });
+      else if (i < 0) setStatus('已经是第一集了', { ms: 2500 });
+      else if (i >= vod.eps.length) setStatus('已经是最后一集了', { ms: 2500 });
+      else { saveVod(vod); playEpisode(vod, i); }
+      return;
+    }
     if (!p || !p.getPlaylist || !p.getPlaylist()) { setStatus('这个节目只有一集', { ms: 2500 }); return; }
     if (step > 0) p.nextVideo(); else p.previousVideo();
     setStatus(step > 0 ? '下一集…' : '上一集…', { ms: 2000 });
@@ -931,6 +1052,7 @@
     kind: session ? session.kind : null,
     played: session ? !!session.played : (vod ? !!vod.played : false),
     status: statusEl.classList.contains('hidden') ? '' : statusEl.innerText,
+    osd: osd.innerText,
   });
 
   // Device-test hook: the test starts the app with e.g. "#test&focus=cgtn" (or "focusvod=1"),

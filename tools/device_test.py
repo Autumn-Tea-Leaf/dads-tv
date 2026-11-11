@@ -145,23 +145,32 @@ def main():
     live('cctv4', 'CCTV-4', True, 45, 'CCTV-4')
     live('tvbnews', 'TVB News', True, 45, '無綫新聞台')
 
-    # A drama: provider tile -> first card -> plays; Back twice: player -> list -> home
+    # A drama: provider tile -> first show -> its episode screen -> episode 1 plays;
+    # Back three times: player -> episodes -> list -> home
     start('test&focusvod=1')
     focused = (wait_state(lambda s: (s.get('focused') or '').startswith('TVB'), 30) or {}).get('focused')
     record('drama provider tile selected', (focused or '').startswith('TVB'), focused=focused)
     key(23, 3)
     fresh_log()
     key(23, 2)
+    state = wait_state(lambda s: s.get('screen') == 'series', 20)
+    shot('vod-episodes')
+    record('show opens its episode screen on episode 1',
+           state and state.get('screen') == 'series' and (state.get('focused') or '').startswith('1'), state=state)
+    fresh_log()
+    key(22, 1)  # DPAD_RIGHT: episode 2
+    key(23, 2)
     state = wait_state(lambda s: s.get('screen') == 'player' and s.get('played'), 45)
     shot('vod-player')
     record('drama plays', state and state.get('played'), state=state)
-    fresh_log()
-    key(4, 2)
-    s1 = (wait_state(lambda s: s.get('screen') != 'player', 10) or {}).get('screen')
-    fresh_log()
-    key(4, 2)
-    s2 = (wait_state(lambda s: s.get('screen') == 'home', 10) or {}).get('screen')
-    record('Back steps player -> list -> home', s1 == 'browse' and s2 == 'home', after1=s1, after2=s2)
+    record('player shows which episode', state and ' 集' in (state.get('osd') or ''), osd=(state or {}).get('osd'))
+    screens = []
+    for _ in range(3):
+        fresh_log()
+        key(4, 2)
+        before = screens[-1] if screens else 'player'
+        screens.append((wait_state(lambda s: s.get('screen') != before, 10) or {}).get('screen'))
+    record('Back steps player -> episodes -> list -> home', screens == ['series', 'browse', 'home'], screens=screens)
 
     key(4, 1)  # one Back on home: the app must stay open
     top = adb('shell', 'dumpsys', 'activity', 'activities')
