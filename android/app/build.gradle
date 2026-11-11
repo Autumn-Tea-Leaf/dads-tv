@@ -10,7 +10,7 @@ def appUrl = project.findProperty('appUrl') ?: ''
 // The app's version. Boxes update themselves when this number goes up (see Updater.java), so
 // raise it by one whenever a change to the app itself (anything under android/) should reach
 // them. Changes to the page, channels or catalog reach them without it.
-def appVersionCode = 3
+def appVersionCode = 4
 // For the device test: -PtestVersionCode=1 builds an "older" app, to test updating from it.
 def buildVersionCode = (project.findProperty('testVersionCode') ?: appVersionCode) as int
 
