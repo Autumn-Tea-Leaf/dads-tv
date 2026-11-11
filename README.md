@@ -45,6 +45,7 @@ The Unblock Tech box runs Android, so it installs like any Android app.
      the release download link.
 3. **Allow the install.** Android will ask to allow installs from that app ("unknown sources").
    Say yes for the file manager or Downloader only.
+   This is needed once. After that the app updates itself (see "Updates" below).
 4. **Open 区tv** from the home screen. To make it easy to find, move it to the first
    position, or set it as the box's startup app if the launcher allows that.
 
@@ -53,12 +54,34 @@ The Unblock Tech box runs Android, so it installs like any Android app.
 - A few direct streams are 4K (Hebei, Hunan). If they stutter on his line, the app lowers the quality
   automatically. If they still stutter, move them lower in `channels.js`.
 
+## Updates
+
+- **Channels, the page, the drama list:** the app loads the published page, so these change on
+  Dad's TV by themselves.
+- **The app itself:** the app looks at `version.json` (published next to the page) shortly after
+  it starts and every 6 hours. When the version there is higher than its own, it downloads the
+  new APK in the background (slowly, so it doesn't disturb what's playing; a dropped download
+  carries on where it stopped), checks it, and the next time he is on the home screen shows
+  "区tv 有新版本". OK opens Android's installer, where he chooses Install and then Open. Back
+  puts it off until the next day or the next time the app starts. Android always asks for that
+  confirmation; an app can't install silently.
+- **To send out a new app version:** raise `appVersionCode` in `android/app/build.gradle` by one
+  and push. Without that, a changed app is built but boxes keep the one they have (the build
+  prints a warning).
+- **The signing key.** Android only lets an app be replaced by one signed with the same key. The
+  key is in `signing/` on Andy's PC (not in this repository) and in the repository's secrets
+  `SIGNING_KEYSTORE_B64` and `SIGNING_PASSWORD`, which the build uses. Keep a copy of the
+  `signing` folder somewhere safe: if the key is lost, every box needs one more uninstall and
+  reinstall. Set the secrets again with `gh secret set -f signing/secrets.env`.
+- Self-updating needs Android 7 or newer. On Android 8 and newer the box asks once to allow
+  区tv to install apps.
+
 ## Publishing (one-time)
 
 `.github/workflows/build.yml` runs on GitHub's servers. It:
 - publishes the page to GitHub Pages,
 - builds `dads-tv.apk` (the app loads the published page, so channel and catalog changes reach
-  Dad's TV without reinstalling),
+  Dad's TV without reinstalling), signed with the permanent key, and publishes `version.json`,
 - refreshes the drama/movie catalog every Monday.
 
 ## Maintenance

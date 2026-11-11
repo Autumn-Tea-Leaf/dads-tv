@@ -87,8 +87,9 @@ jobs:
           KEY_FINGERPRINT: 0188eece5b93e8c6684fd3dbc01c70415eee27907b49e5aeec3a2654859faded
         run: |
           TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          $TOOLS/apksigner verify --print-certs dads-tv.apk 2>&1 | head -12 || true
           for apk in dads-tv.apk dads-tv-arm64.apk dads-tv-x86.apk dads-tv-x86_64.apk dads-tv-x86-old.apk dads-tv-x86_64-old.apk; do
-            SIGNED_BY=$($TOOLS/apksigner verify --print-certs $apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+            SIGNED_BY=$($TOOLS/apksigner verify --print-certs $apk 2>&1 | grep -m1 -oP 'certificate SHA-256 digest: \K[0-9a-f]+' || true)
             VERSION=$($TOOLS/aapt2 dump badging $apk | grep -oP "versionCode='\K[0-9]+")
             echo "$apk: version $VERSION, signed by $SIGNED_BY"
             if [ -n "$SIGNING_KEYSTORE" ] && [ "$SIGNED_BY" != "$KEY_FINGERPRINT" ]; then

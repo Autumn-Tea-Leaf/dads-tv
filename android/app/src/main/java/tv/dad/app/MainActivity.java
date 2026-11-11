@@ -299,7 +299,7 @@ public class MainActivity extends Activity {
         String[] lines = {
             "区tv 有新版本",
             "按遥控器的 OK 键开始更新",
-            "下一个画面请选“安装”，装好以后选“打开”",
+            "下一个画面：按 → 选“安装”，再按 OK；装好以后选“打开”",
             "现在不想更新，就按返回键，下次再提醒",
             "A new version is ready.  OK: install it.  Back: later.",
         };
