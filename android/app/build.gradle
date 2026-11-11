@@ -93,6 +93,10 @@ tasks.register('copyAdBlocker', Sync) {
     from(zipTree(uboXpi)) {
         exclude 'META-INF/**'
     }
+    // Our own status reporter (see the file), loaded by the blocker's background page.
+    from(layout.projectDirectory.dir('src/main/adblock')) {
+        into 'js'
+    }
     into uboDir
     // Leave the broadcasters' own pages (CCTV, TVB News) completely alone: they are added to
     // the blocker's default "trusted sites", so it only acts on the app's page and YouTube.
@@ -102,10 +106,17 @@ tasks.register('copyAdBlocker', Sync) {
             line.contains("'moz-extension-scheme',") ? line + " 'cctv.com', 'tvb.com'," : line
         }
     }
+    filesMatching('background.html') {
+        filter { String line ->
+            line.contains('src="js/start.js"') ? line + ' <script src="js/dadtv-status.js" type="module"></script>' : line
+        }
+    }
     doLast {
         def patched = uboDir.file('js/background.js').asFile.getText('UTF-8')
-        if (!patched.contains("'cctv.com',") || !uboDir.dir('_locales').asFile.isDirectory()) {
-            throw new GradleException('uBlock Origin layout changed: trusted-sites patch not applied')
+        def page = uboDir.file('background.html').asFile.getText('UTF-8')
+        if (!patched.contains("'cctv.com',") || !page.contains('dadtv-status.js')
+                || !uboDir.dir('_locales').asFile.isDirectory()) {
+            throw new GradleException('uBlock Origin layout changed: our patches were not applied')
         }
     }
 }

@@ -123,7 +123,8 @@ def main():
         return ab.get('normalLoaded') and not ab.get('adLoaded')
     ab = (wait_state(blocking, 150) or {}).get('adblock')
     record('ad blocker stops advert addresses, not normal ones',
-           ab and ab.get('normalLoaded') and not ab.get('adLoaded'), adblock=ab)
+           ab and ab.get('normalLoaded') and not ab.get('adLoaded'), adblock=ab,
+           blocker=latest('DADTV_UBO'))
 
     before = (latest('DADTV_STATE') or {}).get('focused')
     fresh_log()
@@ -198,7 +199,7 @@ finally:
     with open(os.path.join(OUT, 'logcat.txt'), 'w', encoding='utf-8') as f:
         for section in full_log:
             f.write('\n'.join(l for l in section.splitlines()
-                              if re.search(r'DadTV|DADTV_|GeckoConsole|Gecko.*(error|Error)|AndroidRuntime|FATAL', l)))
+                              if re.search(r'DadTV|DADTV_|GeckoConsole|Gecko.*(error|Error)|moz-extension|JavaScript [Ee]rror|AndroidRuntime|FATAL', l)))
             f.write('\n')
     with open(os.path.join(OUT, 'results.json'), 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=1)
