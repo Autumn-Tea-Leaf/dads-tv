@@ -943,11 +943,10 @@
       if (ch) focusEl(tileFor(channels.findIndex((c) => c.id === ch)));
       if (vodIdx) focusEl(document.querySelectorAll('#vodGroup .tile')[+vodIdx]);
     }, 2500);
-    // Ask for an advert address every 5 s. The app's built-in ad blocker should stop these, and
-    // it reports what it saw in the app log ("DADTV_UBO", see android/app/src/main/adblock).
+    // Ask for a blocked advert address every 5 s. The app's built-in ad blocker should stop
+    // these, and it reports what it saw in the app log ("DADTV_UBO", see android/app/src/main/adblock).
     setInterval(() => {
-      fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js', { mode: 'no-cors', cache: 'no-store' })
-        .catch(() => {});
+      fetch('https://doathair.com/ad.js', { mode: 'no-cors', cache: 'no-store' }).catch(() => {});
     }, 5000);
     setInterval(() => {
       const tiles = document.querySelectorAll('#groups .tile');

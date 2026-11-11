@@ -123,12 +123,14 @@ def main():
     def blocking(b):
         seen = b.get('seen') or {}
         return (b.get('startup') == 'done' and b.get('ruleSaysBlock') == 1
-                and (b.get('requests') or {}).get('blockedCount', 0) > 0
-                and seen.get('before', 0) - seen.get('completed', 0) >= 2)
+                and (b.get('requests') or {}).get('blockedCount', 0) >= 2
+                and seen.get('before', 0) >= 2 and seen.get('completed', 0) == 0)
     blocker = wait_state(blocking, 110, 'DADTV_UBO')
     record('ad blocker started and stops advert requests', blocker and blocking(blocker), blocker=blocker)
     scripts = (blocker or {}).get('youtubeScripts')
-    record('ad blocker holds YouTube ad rules', isinstance(scripts, int) and scripts > 1000, size=scripts)
+    record('ad blocker holds YouTube ad rules', isinstance(scripts, int) and scripts > 20000, size=scripts)
+    record('ad blocker has no errors', blocker and not blocker.get('problems'),
+           problems=(blocker or {}).get('problems'))
 
     before = (latest('DADTV_STATE') or {}).get('focused')
     fresh_log()

@@ -112,10 +112,10 @@ tasks.register('copyAdBlocker', Sync) {
         }
     }
     doLast {
-        // Start with only the filter lists that matter for YouTube's adverts (uBlock Origin's
-        // own, plus EasyList). The full default set, plus the regional and mobile lists it
-        // adds by itself, needs more memory than an old TV box has to spare.
-        def keep = ['ublock-filters', 'ublock-quick-fixes', 'ublock-unbreak', 'easylist']
+        // Use only uBlock Origin's own two lists, which hold the YouTube rules. The full default
+        // set (EasyList, EasyPrivacy, ... plus the regional and mobile lists it adds by itself)
+        // ran out of memory on the Android 7 emulator, and an old TV box has no more to spare.
+        def keep = ['ublock-filters', 'ublock-quick-fixes']
         def registryFile = uboDir.file('assets/assets.json').asFile
         def registry = new groovy.json.JsonSlurper().parse(registryFile, 'UTF-8')
         if (!keep.every { registry[it]?.content == 'filters' }) {
@@ -128,6 +128,10 @@ tasks.register('copyAdBlocker', Sync) {
                 entry.remove('ua')
             }
         }
+        // Keep this list of lists as it is: a downloaded newer copy would switch the default
+        // lists back on. The two lists themselves still update from the network.
+        registry['assets.json'].contentURL = ['assets/assets.json']
+        registry['assets.json'].remove('cdnURLs')
         registryFile.setText(groovy.json.JsonOutput.toJson(registry), 'UTF-8')
 
         def patched = uboDir.file('js/background.js').asFile.getText('UTF-8')

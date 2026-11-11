@@ -6,16 +6,17 @@ import ub from './background.js';
 import netFilters from './static-net-filtering.js';
 import scriptlets from './scriptlet-filtering.js';
 
-const AD_URL = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+// An address that uBlock Origin's own list blocks everywhere (the app's test page requests it).
+const AD_URL = 'https://doathair.com/ad.js';
 let startup = 'pending', watching = false;
 const problems = [];
 self.addEventListener('error', (e) => problems.push(e.message + ' @' + e.filename + ':' + e.lineno));
 self.addEventListener('unhandledrejection', (e) =>
   problems.push('rejection: ' + e.reason + ' ' + ((e.reason && e.reason.stack) || '')));
 
-// What the engine itself sees of requests to the advert address the app's test page fetches.
+// What the engine itself sees of the test page's requests to that address.
 const seen = { before: 0, completed: 0, failed: 0, last: null };
-const adHost = { urls: ['*://pagead2.googlesyndication.com/*'] };
+const adHost = { urls: ['*://doathair.com/*'] };
 try {
   browser.webRequest.onBeforeRequest.addListener((d) => {
     seen.before++;
